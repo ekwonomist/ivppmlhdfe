@@ -18,15 +18,9 @@ The command handles panel models applied in applied econometrics:
 
 ## Installation
 
-1. [Download the latest release](https://github.com/ekwonomist/ivppmlhdfe/archive/refs/heads/main.zip) and extract to a local folder.
+1. [Download the latest release](https://github.com/ekwonomist/ivppmlhdfe/archive/refs/heads/main.zip) and copy `ivppmlhdfe.ado` and `ivppmlhdfe.sthlp` to your Stata ado directory (e.g., type `sysdir` in Stata to find it).
 
-2. In Stata, add the folder to the ado-path:
-```stata
-adopath + "xxx/ivppmlhdfe-main"
-```
-Replace `xxx` with the path where you extracted the zip.
-
-3. Install dependencies:
+2. Install dependencies:
 ```stata
 ssc install reghdfe, replace
 ssc install ppmlhdfe, replace
@@ -55,19 +49,19 @@ ivppmlhdfe depvar [exogvars] (endogvars = instruments) [if] [in] [pw], absorb(ab
 
 ```stata
 * Class RE: Time FE only
-use "xxx/ivppmlhdfe-main/data/ivppmlhdfe_ClassRE.dta", clear
+use "data/ivppmlhdfe_ClassRE.dta", clear
 ivppmlhdfe y (x = z), absorb(year) vce(robust)
 
 * Class A: Individual + Time FE
-use "xxx/ivppmlhdfe-main/data/ivppmlhdfe_ClassA.dta", clear
+use "data/ivppmlhdfe_ClassA.dta", clear
 ivppmlhdfe y (x = z), absorb(id year) vce(cluster id)
 
 * Class B: Exporter-year + Importer-year FE
-use "xxx/ivppmlhdfe-main/data/ivppmlhdfe_ClassB.dta", clear
+use "data/ivppmlhdfe_ClassB.dta", clear
 ivppmlhdfe trade (policy = instrument), absorb(exp_year imp_year) vce(cluster pair_id)
 
 * Class C: Exporter-year + Importer-year + Pair FE
-use "xxx/ivppmlhdfe-main/data/ivppmlhdfe_ClassC.dta", clear
+use "data/ivppmlhdfe_ClassC.dta", clear
 ivppmlhdfe trade (policy = instrument), absorb(exp_year imp_year pair_id) vce(cluster pair_id)
 ```
 
@@ -88,10 +82,7 @@ A Julia-powered backend is available for faster estimation on large datasets. It
 ssc install julia, replace
 ```
 
-2. The Julia backend files are included in the download. Add the `julia` subfolder to the ado-path:
-```stata
-adopath + "xxx/ivppmlhdfe-main/julia"
-```
+2. Copy `julia/ivppmlhdfejl.ado`, `julia/ivppmlhdfejl_load.ado`, `julia/ivppmlhdfejl_project.toml`, and the `julia/IVPPMLFixedEffectModels/` folder to your Stata ado directory.
 
 3. First run will install Julia dependencies and precompile (one-time cost).
 

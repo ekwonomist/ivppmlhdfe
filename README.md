@@ -67,7 +67,3 @@ ivppmlhdfe trade (policy = instrument), absorb(exp_year imp_year) vce(cluster pa
 - Correia, S., P. Guimaraes, and T. Zylkin (2020). "Fast Poisson estimation with high-dimensional fixed effects." *Stata Journal*, 20(1), 95-115.
 - Weidner, M. and T. Zylkin (2021). "Bias and consistency in three-way gravity models." *Journal of International Economics*, 132, 103513.
 - Fernandez-Val, I. and M. Weidner (2016). "Individual and time effects in nonlinear panel models with large N, T." *Journal of Econometrics*, 192(1), 291-312.
-
-## Author
-
-Ohyun Kwon

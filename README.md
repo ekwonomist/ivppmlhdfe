@@ -53,17 +53,21 @@ ivppmlhdfe depvar [exogvars] (endogvars = instruments) [if] [in] [pw], absorb(ab
 ## Examples
 
 ```stata
-* Two-way gravity model
+* Class RE: Time FE only
+use "data/ivppmlhdfe_ClassRE.dta", clear
+ivppmlhdfe y (x = z), absorb(year) vce(robust)
+
+* Class A: Individual + Time FE
+use "data/ivppmlhdfe_ClassA.dta", clear
+ivppmlhdfe y (x = z), absorb(id year) vce(cluster id)
+
+* Class B: Exporter-year + Importer-year FE
+use "data/ivppmlhdfe_ClassB.dta", clear
 ivppmlhdfe trade (policy = instrument), absorb(exp_year imp_year) vce(cluster pair_id)
 
-* With bias correction (Class A)
-ivppmlhdfe y (x = z), absorb(id year) vce(cluster id) biascorrection(a id year)
-
-* Three-way gravity model with pair FE
+* Class C: Exporter-year + Importer-year + Pair FE
+use "data/ivppmlhdfe_ClassC.dta", clear
 ivppmlhdfe trade (policy = instrument), absorb(exp_year imp_year pair_id) vce(cluster pair_id)
-
-* Incidence-rate ratios
-ivppmlhdfe trade (policy = instrument), absorb(exp_year imp_year) vce(cluster pair_id) irr
 ```
 
 ## Julia Backend (`ivppmlhdfejl`)

@@ -47,7 +47,8 @@ ivppmlhdfe depvar [exogvars] (endogvars = instruments) [if] [in] [pw], absorb(ab
 
 ## Examples
 
-> ![Note](https://img.shields.io/badge/Note-orange) Example datasets are included in the `data/` folder. `net use` is not available because this is a private repository.
+> [!WARNING]
+> Example datasets are included in the `data/` folder. `net use` is not available because this is a private repository.
 
 ```stata
 * Class RE: Time FE only
@@ -67,9 +68,9 @@ use "data/ivppmlhdfe_ClassC.dta", clear
 ivppmlhdfe trade (policy = instrument), absorb(exp_year imp_year pair_id) vce(cluster pair_id)
 ```
 
-## Julia Backend (`ivppmlhdfejl`)
+## Julia Backend (`ivppmlhdfejl`) — optional
 
-A Julia-powered backend is available for faster estimation on large datasets. It uses [`FixedEffects.jl`](https://github.com/FixedEffects/FixedEffects.jl) for FE absorption with solver reuse across IRLS iterations.
+A Julia-powered backend is available for faster estimation on large datasets. It uses [`FixedEffects.jl`](https://github.com/FixedEffects/FixedEffects.jl) for FE absorption with solver reuse across IRLS iterations. This section can be skipped if you only need the Stata backend.
 
 ### Requirements
 

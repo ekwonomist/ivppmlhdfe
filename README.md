@@ -22,12 +22,11 @@ The command handles panel models applied in applied econometrics:
 
 1. [Download the latest release](https://github.com/ekwonomist/ivppmlhdfe/archive/refs/heads/main.zip) and extract to a local folder.
 
-2. Install dependencies and add the extracted folder to the ado-path:
+2. Install dependencies:
 ```stata
 ssc install reghdfe, replace
 ssc install ppmlhdfe, replace
 ssc install ftools, replace
-adopath + "C:/Downloads/ivppmlhdfe-main"   // adjust to where you extracted the zip
 ```
 
 ## Syntax

@@ -113,7 +113,7 @@ ivppmlhdfejl trade (policy = instrument), absorb(exp_year imp_year) vce(cluster 
 
 Benchmarked at approximately 1.8x faster than the Stata/Mata backend for three-way gravity models (N=200 countries, T=50 periods).
 
-## <span style="color: #E85D2C;">Development Status</span>
+## ![Development Status](https://img.shields.io/badge/Development_Status-In_Progress-orange)
 
 This package is under active development. The core estimator is functional, but several components are in progress:
 
@@ -128,7 +128,7 @@ This package is under active development. The core estimator is functional, but 
 - [ ] Stata help file examples with real data
 - [ ] SSC submission
 
-### Known Issues
+### ![Known Issues](https://img.shields.io/badge/Known_Issues-red)
 
 - **Incidental-parameter bias**: IV-PPML has O(1/T) + O(1/N) point-estimate bias in Class A models (individual + time FE) and O(1/N) in Class B (directional FE). Standard PPML does not have this bias due to Bartlett identity cancellation, but IV-PPML breaks this cancellation because instruments are not likelihood scores. Split-panel jackknife correction is in development.
 - **Variance undercoverage**: Cluster-robust standard errors can undercover in short panels (coverage ~92% vs nominal 95%). Improved variance correction is in progress.

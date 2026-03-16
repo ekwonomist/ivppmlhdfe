@@ -2,6 +2,8 @@
 
 Instrumental-variables Poisson pseudo-maximum likelihood estimation with high-dimensional fixed effects.
 
+Ohyun Kwon, Mario Larch, Jangsu Yoon, Yoto V. Yotov
+
 ## Overview
 
 `ivppmlhdfe` estimates IV-PPML models with multiple sets of high-dimensional fixed effects using iteratively reweighted GMM ([Mullahy, 1997](https://doi.org/10.2307/2951380)). Fixed effects are concentrated out via the PPML first-order condition at each iteration using [`reghdfe`](https://github.com/sergiocorreia/reghdfe).
@@ -64,6 +66,53 @@ ivppmlhdfe trade (policy = instrument), absorb(exp_year imp_year pair_id) vce(cl
 ivppmlhdfe trade (policy = instrument), absorb(exp_year imp_year) vce(cluster pair_id) irr
 ```
 
+## Julia Backend (`ivppmlhdfejl`)
+
+A Julia-powered backend is available for faster estimation on large datasets. It uses [`FixedEffects.jl`](https://github.com/FixedEffects/FixedEffects.jl) for FE absorption with solver reuse across IRLS iterations.
+
+### Requirements
+
+- [Julia](https://julialang.org/downloads/) 1.9 or later
+- Stata 15.0 or later
+- [`jl`](https://github.com/droodman/julia.ado) (Stata-Julia bridge by David Roodman)
+
+### Installation
+
+1. Install Julia and the `jl` Stata-Julia bridge:
+```stata
+ssc install julia, replace
+```
+
+2. Copy the Julia backend files to your Stata ado path:
+```stata
+* Copy from the julia/ subdirectory of this repository:
+*   julia/ivppmlhdfejl.ado
+*   julia/ivppmlhdfejl_load.ado
+*   julia/ivppmlhdfejl_project.toml
+*   julia/IVPPMLFixedEffectModels/   (entire directory)
+```
+
+3. First run will install Julia dependencies and precompile (one-time cost).
+
+### Usage
+
+```stata
+* Same syntax as ivppmlhdfe, just replace the command name
+ivppmlhdfejl trade (policy = instrument), absorb(exp_year imp_year) vce(cluster pair_id)
+```
+
+### Current Limitations
+
+- No bias correction (`biascorrection()` option not yet implemented)
+- No variance correction (Kauermann-Carroll adjustment not available)
+- Requires `jl` (Stata-Julia bridge) to be installed and configured
+- First invocation in a Stata session has a startup cost (~10-20 seconds for Julia initialization)
+- GPU acceleration (`gpu` option) is experimental
+
+### Performance
+
+Benchmarked at approximately 1.8x faster than the Stata/Mata backend for three-way gravity models (N=200 countries, T=50 periods).
+
 ## <span style="color: #E85D2C;">Development Status</span>
 
 This package is under active development. The core estimator is functional, but several components are in progress:
@@ -72,6 +121,7 @@ This package is under active development. The core estimator is functional, but 
 - [x] Robust and cluster-robust variance estimation
 - [x] Multi-way fixed effects (Classes A, B, C)
 - [x] Kauermann-Carroll variance correction
+- [x] Julia backend (`ivppmlhdfejl`)
 - [ ] Point-estimate bias correction (split-panel jackknife)
 - [ ] Variance correction for jackknife estimates
 - [ ] Class C bias correction

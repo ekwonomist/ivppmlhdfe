@@ -1,0 +1,16 @@
+name = "IVPPMLFixedEffectModels"
+uuid = "fbf2f18d-b04c-4f09-b658-baf9122d0788"
+version = "0.2.0"
+
+[deps]
+FixedEffects = "c8885935-8500-56a7-9867-7708b20db0eb"
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+PrecompileTools = "aea7be01-6a6a-4083-8856-8a6e6704d82a"
+Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
+StatsBase = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
+
+[compat]
+FixedEffects = "2"
+PrecompileTools = "1"
+StatsBase = "0.33, 0.34"
+julia = "1.9"

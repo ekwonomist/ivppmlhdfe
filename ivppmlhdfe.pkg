@@ -1,0 +1,13 @@
+v 3
+d ivppmlhdfe: IV-PPML with High-Dimensional Fixed Effects
+d
+d IV Poisson Pseudo-Maximum Likelihood estimator with multi-way fixed effects.
+d Uses iteratively reweighted GMM (Mullahy 1997) with fixed effects
+d concentrated out via the PPML first-order condition.
+d
+d Requires: reghdfe, ppmlhdfe, ftools
+d
+d Author: Ohyun Kwon
+d Distribution-Date: 20260316
+f ivppmlhdfe.ado
+f ivppmlhdfe.sthlp

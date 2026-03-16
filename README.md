@@ -47,6 +47,8 @@ ivppmlhdfe depvar [exogvars] (endogvars = instruments) [if] [in] [pw], absorb(ab
 
 ## Examples
 
+> ![Note](https://img.shields.io/badge/Note-orange) Example datasets are included in the `data/` folder. `net use` is not available because this is a private repository.
+
 ```stata
 * Class RE: Time FE only
 use "data/ivppmlhdfe_ClassRE.dta", clear

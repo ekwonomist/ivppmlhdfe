@@ -18,14 +18,15 @@ The command handles panel models applied in applied econometrics:
 
 ## Installation
 
-### From GitHub (recommended)
+1. [Download the latest release](https://github.com/ekwonomist/ivppmlhdfe/archive/refs/heads/main.zip) and extract to a local folder.
 
+2. In Stata, add the folder to the ado-path:
 ```stata
-net install ivppmlhdfe, from("https://raw.githubusercontent.com/ekwonomist/ivppmlhdfe/main/") replace
+adopath + "xxx/ivppmlhdfe-main"
 ```
+Replace `xxx` with the path where you extracted the zip.
 
-### Dependencies
-
+3. Install dependencies:
 ```stata
 ssc install reghdfe, replace
 ssc install ppmlhdfe, replace
@@ -53,22 +54,20 @@ ivppmlhdfe depvar [exogvars] (endogvars = instruments) [if] [in] [pw], absorb(ab
 ## Examples
 
 ```stata
-local url "https://raw.githubusercontent.com/ekwonomist/ivppmlhdfe/main/data"
-
 * Class RE: Time FE only
-use "`url'/ivppmlhdfe_ClassRE.dta", clear
+use "xxx/ivppmlhdfe-main/data/ivppmlhdfe_ClassRE.dta", clear
 ivppmlhdfe y (x = z), absorb(year) vce(robust)
 
 * Class A: Individual + Time FE
-use "`url'/ivppmlhdfe_ClassA.dta", clear
+use "xxx/ivppmlhdfe-main/data/ivppmlhdfe_ClassA.dta", clear
 ivppmlhdfe y (x = z), absorb(id year) vce(cluster id)
 
 * Class B: Exporter-year + Importer-year FE
-use "`url'/ivppmlhdfe_ClassB.dta", clear
+use "xxx/ivppmlhdfe-main/data/ivppmlhdfe_ClassB.dta", clear
 ivppmlhdfe trade (policy = instrument), absorb(exp_year imp_year) vce(cluster pair_id)
 
 * Class C: Exporter-year + Importer-year + Pair FE
-use "`url'/ivppmlhdfe_ClassC.dta", clear
+use "xxx/ivppmlhdfe-main/data/ivppmlhdfe_ClassC.dta", clear
 ivppmlhdfe trade (policy = instrument), absorb(exp_year imp_year pair_id) vce(cluster pair_id)
 ```
 
@@ -89,9 +88,9 @@ A Julia-powered backend is available for faster estimation on large datasets. It
 ssc install julia, replace
 ```
 
-2. Install the Julia backend by running this one-liner in Stata:
+2. The Julia backend files are included in the download. Add the `julia` subfolder to the ado-path:
 ```stata
-do "https://raw.githubusercontent.com/ekwonomist/ivppmlhdfe/main/julia/install_ivppmlhdfejl.do"
+adopath + "xxx/ivppmlhdfe-main/julia"
 ```
 
 3. First run will install Julia dependencies and precompile (one-time cost).

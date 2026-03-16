@@ -53,20 +53,22 @@ ivppmlhdfe depvar [exogvars] (endogvars = instruments) [if] [in] [pw], absorb(ab
 ## Examples
 
 ```stata
+local url "https://raw.githubusercontent.com/ekwonomist/ivppmlhdfe/main/data"
+
 * Class RE: Time FE only
-use "data/ivppmlhdfe_ClassRE.dta", clear
+use "`url'/ivppmlhdfe_ClassRE.dta", clear
 ivppmlhdfe y (x = z), absorb(year) vce(robust)
 
 * Class A: Individual + Time FE
-use "data/ivppmlhdfe_ClassA.dta", clear
+use "`url'/ivppmlhdfe_ClassA.dta", clear
 ivppmlhdfe y (x = z), absorb(id year) vce(cluster id)
 
 * Class B: Exporter-year + Importer-year FE
-use "data/ivppmlhdfe_ClassB.dta", clear
+use "`url'/ivppmlhdfe_ClassB.dta", clear
 ivppmlhdfe trade (policy = instrument), absorb(exp_year imp_year) vce(cluster pair_id)
 
 * Class C: Exporter-year + Importer-year + Pair FE
-use "data/ivppmlhdfe_ClassC.dta", clear
+use "`url'/ivppmlhdfe_ClassC.dta", clear
 ivppmlhdfe trade (policy = instrument), absorb(exp_year imp_year pair_id) vce(cluster pair_id)
 ```
 

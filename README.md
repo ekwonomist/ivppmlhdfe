@@ -83,13 +83,9 @@ A Julia-powered backend is available for faster estimation on large datasets. It
 ssc install julia, replace
 ```
 
-2. Copy the Julia backend files to your Stata ado path:
+2. Install the Julia backend by running this one-liner in Stata:
 ```stata
-* Copy from the julia/ subdirectory of this repository:
-*   julia/ivppmlhdfejl.ado
-*   julia/ivppmlhdfejl_load.ado
-*   julia/ivppmlhdfejl_project.toml
-*   julia/IVPPMLFixedEffectModels/   (entire directory)
+do "https://raw.githubusercontent.com/ekwonomist/ivppmlhdfe/main/julia/install_ivppmlhdfejl.do"
 ```
 
 3. First run will install Julia dependencies and precompile (one-time cost).

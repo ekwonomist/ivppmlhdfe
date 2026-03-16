@@ -7,6 +7,7 @@ Instrumental-variables Poisson pseudo-maximum likelihood estimation with high-di
 `ivppmlhdfe` estimates IV-PPML models with multiple sets of high-dimensional fixed effects using iteratively reweighted GMM ([Mullahy, 1997](https://doi.org/10.2307/2951380)). Fixed effects are concentrated out via the PPML first-order condition at each iteration using [`reghdfe`](https://github.com/sergiocorreia/reghdfe).
 
 The command handles panel models applied in applied econometrics:
+- **Class RE**: Time FE only, no individual FE (random effects)
 - **Class A**: Individual + time FE (e.g., firm panel)
 - **Class B**: Exporter-year + importer-year FE (two-way gravity)
 - **Class C**: Exporter-year + importer-year + pair FE (three-way gravity)

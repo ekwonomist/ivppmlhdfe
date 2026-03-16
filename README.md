@@ -47,8 +47,7 @@ ivppmlhdfe depvar [exogvars] (endogvars = instruments) [if] [in] [pw], absorb(ab
 
 ## Examples
 
-> [!WARNING]
-> Example datasets are included in the `data/` folder. `net use` is not available because this is a private repository.
+> ![Note](https://img.shields.io/badge/Note-Private_git_limitation-orange) `net install` is not available. Example datasets are included in the `data/` folder.
 
 ```stata
 * Class RE: Time FE only
@@ -79,6 +78,8 @@ A Julia-powered backend is available for faster estimation on large datasets. It
 - [`jl`](https://github.com/droodman/julia.ado) (Stata-Julia bridge by David Roodman)
 
 ### Installation
+
+> ![Note](https://img.shields.io/badge/Note-Private_git_limitation-orange) Manual file copy is required instead of the one-liner install script.
 
 1. Install Julia and the `jl` Stata-Julia bridge:
 ```stata

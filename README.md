@@ -61,6 +61,25 @@ ivppmlhdfe trade (policy = instrument), absorb(exp_year imp_year pair_id) vce(cl
 ivppmlhdfe trade (policy = instrument), absorb(exp_year imp_year) vce(cluster pair_id) irr
 ```
 
+## Development Status
+
+This package is under active development. The core estimator is functional, but several components are in progress:
+
+- [x] Core IV-PPML estimator (IRLS-GMM with `reghdfe`)
+- [x] Robust and cluster-robust variance estimation
+- [x] Multi-way fixed effects (Classes A, B, C)
+- [x] Kauermann-Carroll variance correction
+- [ ] Point-estimate bias correction (split-panel jackknife)
+- [ ] Variance correction for jackknife estimates
+- [ ] Class C bias correction
+- [ ] Stata help file examples with real data
+- [ ] SSC submission
+
+### Known Issues
+
+- **Incidental-parameter bias**: IV-PPML has O(1/T) + O(1/N) point-estimate bias in Class A models (individual + time FE) and O(1/N) in Class B (directional FE). Standard PPML does not have this bias due to Bartlett identity cancellation, but IV-PPML breaks this cancellation because instruments are not likelihood scores. Split-panel jackknife correction is in development.
+- **Variance undercoverage**: Cluster-robust standard errors can undercover in short panels (coverage ~92% vs nominal 95%). Improved variance correction is in progress.
+
 ## References
 
 - Mullahy, J. (1997). "Instrumental-variable estimation of count data models." *Review of Economics and Statistics*, 79(4), 586-593.

@@ -27,7 +27,7 @@ The command handles panel models applied in applied econometrics:
 ssc install reghdfe, replace
 ssc install ppmlhdfe, replace
 ssc install ftools, replace
-adopath + "C:/ivppmlhdfe-main"   // adjust to where you extracted the zip
+adopath + "C:/Downloads/ivppmlhdfe-main"   // adjust to where you extracted the zip
 ```
 
 ## Syntax

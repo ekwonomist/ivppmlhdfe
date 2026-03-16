@@ -18,6 +18,8 @@ The command handles panel models applied in applied econometrics:
 
 ## Installation
 
+> ![Note](https://img.shields.io/badge/Note-Private_git_limitation-orange) `net install` is not available.
+
 1. [Download the latest release](https://github.com/ekwonomist/ivppmlhdfe/archive/refs/heads/main.zip) and copy `ivppmlhdfe.ado` and `ivppmlhdfe.sthlp` to your Stata ado directory (e.g., type `sysdir` in Stata to find it).
 
 2. Install dependencies:

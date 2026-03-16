@@ -52,6 +52,8 @@ ivppmlhdfe depvar [exogvars] (endogvars = instruments) [if] [in] [pw], absorb(ab
 > ![Note](https://img.shields.io/badge/Note-Private_git_limitation-orange) `net install` is not available. Example datasets are included in the `data/` folder.
 
 ```stata
+cd "your_directory/ivppmlhdfe-main"
+
 * Class RE: Time FE only
 use "data/ivppmlhdfe_ClassRE.dta", clear
 ivppmlhdfe y (x = z), absorb(year) vce(robust)

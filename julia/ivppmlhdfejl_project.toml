@@ -2,4 +2,5 @@
 FixedEffects = "c8885935-8500-56a7-9867-7708b20db0eb"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 PrecompileTools = "aea7be01-6a6a-4083-8856-8a6e6704d82a"
+SpecialFunctions = "276daf66-3868-5448-9aa4-cd146d93841b"
 StatsBase = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"

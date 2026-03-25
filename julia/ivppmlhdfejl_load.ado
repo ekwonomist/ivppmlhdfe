@@ -1,4 +1,4 @@
-*! ivppmlhdfejl_load  0.2.0 14mar2026
+*! ivppmlhdfejl_load  0.8.0 24mar2026
 *! Loads Julia environment and IVPPMLFixedEffectModels package
 *! Pattern follows reghdfejl_load.ado (jl SetEnv + using)
 

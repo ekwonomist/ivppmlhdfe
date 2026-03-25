@@ -13,6 +13,7 @@
 #
 # Authors: Ohyun Kwon
 # Date: 2026-03-14
+# Updated: 2026-03-24 — v0.8 feature parity with ivppmlhdfe.ado
 
 module IVPPMLFixedEffectModels
 
@@ -20,6 +21,7 @@ using LinearAlgebra
 using FixedEffects
 using FixedEffects: update_weights!
 using StatsBase: Weights
+using SpecialFunctions: loggamma
 using Printf
 using PrecompileTools
 
@@ -38,6 +40,11 @@ struct IVPPMLResult
     converged::Bool
     iterations::Int
     deviance::Float64
+    ll::Float64
+    ll_0::Float64
+    d_values::Vector{Float64}       # FE sum (eta - offset - X*b - b_cons)
+    eta_values::Vector{Float64}     # linear predictor
+    N_clust::Vector{Int}            # cluster counts per cluster variable
     esample::BitVector
 end
 
@@ -91,18 +98,13 @@ function _ivppml_robust_vce(Xhat::Matrix{Float64},
 end
 
 # ============================================================================
-# Cluster-robust sandwich VCE  (Arellano G/(G-1) correction)
+# Cluster meat: sum of outer products of score sums within clusters
+# Returns (meat, G) where G is number of clusters
 # ============================================================================
 
-function _ivppml_cluster_vce(Xhat::Matrix{Float64},
-                             X_dm::Matrix{Float64},
-                             w::Vector{Float64},
-                             resid::Vector{Float64},
-                             clust_id::AbstractVector)
-    K = size(X_dm, 2)
-    bread  = inv(Symmetric(Xhat' * (w .* X_dm)))
-    scores = Xhat .* (w .* resid)
-
+function _ivppml_clustmeat(scores::Matrix{Float64},
+                           clust_id::AbstractVector)
+    K = size(scores, 2)
     perm = sortperm(clust_id)
     sorted_id = clust_id[perm]
     sorted_scores = scores[perm, :]
@@ -121,8 +123,103 @@ function _ivppml_cluster_vce(Xhat::Matrix{Float64},
         i = j
     end
 
+    return meat, G
+end
+
+# ============================================================================
+# Interaction group IDs from two group vectors
+# ============================================================================
+
+function _interact_id(id1::AbstractVector, id2::AbstractVector)
+    N = length(id1)
+    perm = sortperm(collect(zip(id1, id2)))
+    s1 = id1[perm]
+    s2 = id2[perm]
+    result = similar(id1, Int)
+    result[perm[1]] = 1
+    cnt = 1
+    for i in 2:N
+        if s1[i] != s1[i-1] || s2[i] != s2[i-1]
+            cnt += 1
+        end
+        result[perm[i]] = cnt
+    end
+    return result
+end
+
+# ============================================================================
+# Single-cluster VCE  (Arellano G/(G-1) correction)
+# ============================================================================
+
+function _ivppml_cluster_vce_single(Xhat::Matrix{Float64},
+                                    X_dm::Matrix{Float64},
+                                    w::Vector{Float64},
+                                    resid::Vector{Float64},
+                                    clust_id::AbstractVector)
+    K = size(X_dm, 2)
+    bread  = inv(Symmetric(Xhat' * (w .* X_dm)))
+    scores = Xhat .* (w .* resid)
+
+    meat, G = _ivppml_clustmeat(scores, clust_id)
     V = (G / (G - 1)) .* bread * meat * bread
-    return V, G
+    return V, [G]
+end
+
+# ============================================================================
+# Multi-way cluster VCE (CGM inclusion-exclusion formula)
+# ============================================================================
+
+function _ivppml_cluster_vce_multiway(Xhat::Matrix{Float64},
+                                      X_dm::Matrix{Float64},
+                                      w::Vector{Float64},
+                                      resid::Vector{Float64},
+                                      clust_ids::Matrix{Float64},
+                                      n_clust::Int)
+    K = size(X_dm, 2)
+    bread  = inv(Symmetric(Xhat' * (w .* X_dm)))
+    scores = Xhat .* (w .* resid)
+
+    V_slope = zeros(K, K)
+    G_counts = zeros(Int, n_clust)
+
+    # Iterate over all non-empty subsets of {1..n_clust}
+    for mask in 1:(2^n_clust - 1)
+        subset_size = count_ones(mask)
+
+        # Build combined cluster ID for this subset
+        cid = nothing
+        for j in 1:n_clust
+            if (mask >> (j - 1)) & 1 == 1
+                col_j = clust_ids[:, j]
+                if cid === nothing
+                    cid = col_j
+                else
+                    cid = Float64.(_interact_id(cid, col_j))
+                end
+            end
+        end
+
+        meat_sub, G_sub = _ivppml_clustmeat(scores, cid)
+
+        # CGM sign: + for odd subset size, - for even
+        sign = iseven(subset_size) ? -1 : 1
+
+        V_slope .+= sign * (G_sub / (G_sub - 1)) .* bread * meat_sub * bread
+
+        # Store cluster counts for single-variable subsets
+        if subset_size == 1
+            for j in 1:n_clust
+                if mask == (1 << (j - 1))
+                    G_counts[j] = G_sub
+                end
+            end
+        end
+    end
+
+    # Symmetrize
+    V_slope .= 0.5 .* (V_slope .+ V_slope')
+
+    return V_slope, G_counts
 end
 
 # ============================================================================
@@ -138,8 +235,9 @@ function ivppml_reg(df::Any,          # AbstractDataFrame
                     endog::Vector{Symbol},
                     instruments::Vector{Symbol},
                     fe_syms::Vector{Symbol};
-                    cluster::Union{Symbol, Nothing} = nothing,
+                    cluster::Union{Vector{Symbol}, Symbol, Nothing} = nothing,
                     weights::Union{Symbol, Nothing} = nothing,
+                    offset::Union{Symbol, Nothing} = nothing,
                     tol::Float64  = 1e-8,
                     maxiter::Int  = 1000,
                     verbose::Int  = 0,
@@ -177,9 +275,34 @@ function ivppml_reg(df::Any,          # AbstractDataFrame
     # User weights
     w_user = weights === nothing ? ones(Float64, N) : Float64.(df[!, weights])
 
-    # Cluster IDs
-    has_cluster = cluster !== nothing
-    clust_id = has_cluster ? df[!, cluster] : nothing
+    # Offset
+    has_offset = offset !== nothing
+    offset_vec = has_offset ? Float64.(df[!, offset]) : zeros(Float64, N)
+
+    # Cluster IDs — normalize to Vector{Symbol}
+    local clust_syms::Vector{Symbol}
+    if cluster === nothing
+        clust_syms = Symbol[]
+    elseif cluster isa Symbol
+        clust_syms = [cluster]
+    else
+        clust_syms = cluster
+    end
+    n_clust = length(clust_syms)
+    has_cluster = n_clust > 0
+
+    # Load cluster ID columns
+    clust_id_cols = nothing
+    if has_cluster
+        if n_clust == 1
+            clust_id_cols = df[!, clust_syms[1]]
+        else
+            clust_id_cols = Matrix{Float64}(undef, N, n_clust)
+            for (j, s) in enumerate(clust_syms)
+                clust_id_cols[:, j] .= Float64.(df[!, s])
+            end
+        end
+    end
 
     # Coefficient names
     cnames = vcat(String.(vcat(exog, endog)), "_cons")
@@ -189,7 +312,7 @@ function ivppml_reg(df::Any,          # AbstractDataFrame
     mean_y = dot(w_user, y) / sw
     mu  = @. 0.5 * (y + mean_y)
     mu  = max.(mu, 1e-4)
-    eta = log.(mu)
+    eta = log.(mu) .+ offset_vec
 
     # ---- Build FE solver ONCE ----
     irls_w = w_user .* mu
@@ -233,8 +356,8 @@ function ivppml_reg(df::Any,          # AbstractDataFrame
     for it in 1:maxiter
         iter = it
 
-        # (a) Working dependent variable: z = eta - 1 + y / mu
-        z = eta .- 1.0 .+ y ./ mu
+        # (a) Working dependent variable: z = eta - offset - 1 + y / mu
+        z = eta .- offset_vec .- 1.0 .+ y ./ mu
 
         # (b) IRLS weights: w = w_user * mu
         @. irls_w = w_user * mu
@@ -263,9 +386,9 @@ function ivppml_reg(df::Any,          # AbstractDataFrame
         # (e) Weighted 2SLS
         _ivppml_2sls!(b, resid, Xhat, z_dm, X_dm, Z_dm, irls_w)
 
-        # (f) Update eta
+        # (f) Update eta = z - resid + offset
         copyto!(old_eta, eta)
-        @. eta = z - resid
+        @. eta = z - resid + offset_vec
 
         # (g) Update mu
         @. mu = exp(eta)
@@ -345,9 +468,9 @@ function ivppml_reg(df::Any,          # AbstractDataFrame
     @. irls_w = w_user * mu
     sw_f = sum(irls_w)
 
-    mean_eta = dot(irls_w, eta) / sw_f
+    mean_eta_no_offset = dot(irls_w, eta .- offset_vec) / sw_f
     mean_X   = vec(sum(irls_w .* X; dims=1)) ./ sw_f
-    b_cons   = mean_eta - dot(mean_X, b)
+    b_cons   = mean_eta_no_offset - dot(mean_X, b)
 
     b_full  = vcat(b, b_cons)
     K_total = K + 1
@@ -358,9 +481,13 @@ function ivppml_reg(df::Any,          # AbstractDataFrame
     Xhat  .= Z_dm * Pi_f
 
     # VCE
-    N_clust = 0
+    G_counts = Int[]
     if has_cluster
-        V_slope, N_clust = _ivppml_cluster_vce(Xhat, X_dm, irls_w, resid, clust_id)
+        if n_clust == 1
+            V_slope, G_counts = _ivppml_cluster_vce_single(Xhat, X_dm, irls_w, resid, clust_id_cols)
+        else
+            V_slope, G_counts = _ivppml_cluster_vce_multiway(Xhat, X_dm, irls_w, resid, clust_id_cols, n_clust)
+        end
     else
         V_slope = _ivppml_robust_vce(Xhat, X_dm, irls_w, resid, N)
     end
@@ -370,11 +497,33 @@ function ivppml_reg(df::Any,          # AbstractDataFrame
     V[1:K, 1:K] = V_slope
     V[K_total, K_total] = V_slope[1, 1]   # placeholder SE for _cons
 
+    # ---- Log pseudo-likelihood ----
+    # ll = sum(w * (y * eta - mu - lngamma(y + 1)))
+    ll = 0.0
+    @inbounds for i in 1:N
+        ll += w_user[i] * (y[i] * eta[i] - mu[i] - loggamma(y[i] + 1.0))
+    end
+
+    # Null model: constant-only, mu_0 = mean(y)
+    ll_0 = 0.0
+    log_mean_y = log(mean_y)
+    @inbounds for i in 1:N
+        ll_0 += w_user[i] * (y[i] * log_mean_y - mean_y - loggamma(y[i] + 1.0))
+    end
+
+    # ---- d values: FE sum = eta - offset - X*b - b_cons ----
+    d_vals = eta .- offset_vec
+    if K > 0
+        d_vals .-= X * b
+    end
+    d_vals .-= b_cons
+
     # esample (all true since data is pre-filtered by Stata)
     esample = trues(N_full)
 
     return IVPPMLResult(b_full, V, cnames, N, N_full,
-                        converged, iter, deviance, esample)
+                        converged, iter, deviance, ll, ll_0,
+                        d_vals, eta, G_counts, esample)
 end
 
 # ============================================================================
@@ -400,11 +549,12 @@ Base.getindex(d::_DFWrap, ::typeof(!), s::Symbol) = getfield(d.nt, s)
         z1   = randn(_N),
         fe1  = repeat(1:4, 5),
         cid  = repeat(1:5, 4),
+        off1 = randn(_N) .* 0.1,
     ))
 
     # Run estimation (silent) — triggers compilation of all code paths
     ivppml_reg(_dfwrap, :y, Symbol[:x1], Symbol[:x2], Symbol[:z1], Symbol[:fe1];
-               cluster = :cid, tol = 1e-4, maxiter = 5, verbose = -1)
+               cluster = :cid, offset = :off1, tol = 1e-4, maxiter = 5, verbose = -1)
 end
 
 end # module

@@ -8,10 +8,11 @@ d
 d Requires: reghdfe, ppmlhdfe, ftools
 d
 d Author: Ohyun Kwon
-d Distribution-Date: 20260316
+d Distribution-Date: 20260415
 f ivppmlhdfe.ado
+f ivppmlhdfe_p.ado
 f ivppmlhdfe.sthlp
-f data/ivppmlhdfe_ClassRE.dta
 f data/ivppmlhdfe_ClassA.dta
 f data/ivppmlhdfe_ClassB.dta
 f data/ivppmlhdfe_ClassC.dta
+f data/DGP.do

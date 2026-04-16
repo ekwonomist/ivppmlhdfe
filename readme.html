@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ivppmlhdfe &mdash; IV-PPML with High-Dimensional Fixed Effects</title>
+<style>
+  :root { --bg: #fafafa; --card: #fff; --border: #e0e0e0; --accent: #1a5276; --code-bg: #1c2833; --code-fg: #ecf0f1; --green: #27ae60; --red: #c0392b; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; background: var(--bg); color: #2c3e50; line-height: 1.65; }
+  .container { max-width: 880px; margin: 0 auto; padding: 2rem 1.5rem; }
+  h1 { font-size: 2rem; margin-bottom: 0.2rem; color: var(--accent); }
+  .subtitle { color: #7f8c8d; font-size: 1rem; margin-bottom: 0.3rem; }
+  .authors { color: #555; font-size: 0.95rem; margin-bottom: 2rem; }
+  h2 { font-size: 1.35rem; margin: 2.5rem 0 0.8rem; color: var(--accent); border-bottom: 2px solid var(--accent); padding-bottom: 0.3rem; }
+  h3 { font-size: 1.1rem; margin: 1.5rem 0 0.5rem; color: #34495e; }
+  p { margin: 0.6rem 0; font-size: 0.95rem; }
+  ul, ol { padding-left: 1.5rem; margin: 0.5rem 0; }
+  li { margin: 0.3rem 0; font-size: 0.95rem; }
+  code { font-family: 'Cascadia Code', 'Fira Code', Consolas, monospace; font-size: 0.88rem; }
+  .ic { background: #ebedef; padding: 2px 5px; border-radius: 3px; }
+  pre { background: var(--code-bg); color: var(--code-fg); padding: 1rem 1.2rem; border-radius: 6px; overflow-x: auto; margin: 0.8rem 0; font-size: 0.85rem; line-height: 1.5; }
+  pre code { background: none; padding: 0; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1.2rem 1.5rem; margin: 1rem 0; }
+  .note { border-left: 4px solid var(--accent); background: #eaf2f8; padding: 0.8rem 1rem; border-radius: 0 6px 6px 0; margin: 1rem 0; }
+  .warn { border-left: 4px solid #e67e22; background: #fef5e7; padding: 0.8rem 1rem; border-radius: 0 6px 6px 0; margin: 1rem 0; }
+  table { width: 100%; border-collapse: collapse; margin: 0.8rem 0; font-size: 0.9rem; }
+  th { background: var(--accent); color: #fff; padding: 0.5rem 0.7rem; text-align: left; font-weight: 600; }
+  td { padding: 0.45rem 0.7rem; border-bottom: 1px solid var(--border); }
+  tr:hover td { background: #f4f6f7; }
+  .check { color: var(--green); font-weight: bold; }
+  .badge { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 0.78rem; font-weight: 600; }
+  .badge-alpha { background: #fadbd8; color: var(--red); }
+  .badge-ver { background: #d5f5e3; color: var(--green); }
+  a { color: var(--accent); }
+  footer { margin-top: 3rem; padding-top: 1.5rem; border-top: 1px solid var(--border); color: #95a5a6; font-size: 0.85rem; }
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+  @media (max-width: 640px) { .two-col { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="container">
+
+<div class="note" style="margin-bottom:1.5rem;">
+  This is the local browsing version with full annotated code examples. For the GitHub version, see <a href="README.md">README.md</a>.
+</div>
+
+<h1>ivppmlhdfe</h1>
+<p class="subtitle">Instrumental-Variables Poisson PML with High-Dimensional Fixed Effects</p>
+<p class="authors">Ohyun Kwon, Mario Larch, Jangsu Yoon, Yoto V. Yotov</p>
+<p><span class="badge badge-alpha">Alpha</span> <span class="badge badge-ver">v0.9.4</span></p>
+
+<!-- ============================================================ -->
+<h2>Overview</h2>
+
+<p><code class="ic">ivppmlhdfe</code> estimates IV-PPML models with multiple sets of high-dimensional fixed effects. The estimator targets the additive moment condition <strong>E[Z(y &minus; &mu;)] = 0</strong> (<a href="https://doi.org/10.2307/2951380">Mullahy, 1997</a>, Eq.&nbsp;6), solved via iteratively reweighted 2SLS with fixed effects concentrated out at each iteration using <a href="https://github.com/sergiocorreia/reghdfe">reghdfe</a>.</p>
+
+<p>The command is designed to feel natural to users of <a href="https://github.com/sergiocorreia/ppmlhdfe">ppmlhdfe</a>. All standard post-estimation commands are supported.</p>
+
+<div class="warn">
+  <strong>Alpha release.</strong> This is a pre-release version shared with coauthors for testing. The API and results may change. Please report issues to Ohyun Kwon.
+</div>
+
+<!-- ============================================================ -->
+<h2>Model Classes</h2>
+
+<table>
+  <tr><th>Class</th><th>Dimension</th><th>Fixed Effects</th><th>Stata Example</th></tr>
+  <tr><td>A</td><td>N &times; T</td><td>Individual + Time</td><td><code>absorb(id year)</code></td></tr>
+  <tr><td>B</td><td>N &times; N &times; T</td><td>Exporter-year + Importer-year</td><td><code>absorb(exp#yr imp#yr)</code></td></tr>
+  <tr><td>C</td><td>N &times; N &times; T</td><td>Pair + Exp-year + Imp-year</td><td><code>absorb(exp#imp exp#yr imp#yr)</code></td></tr>
+</table>
+
+<div class="note">
+  <strong>Multiple endogenous regressors supported.</strong> Both just-identified and overidentified models are supported. Multiple endogenous regressors are allowed (requires at least as many excluded instruments as endogenous regressors).
+</div>
+
+<!-- ============================================================ -->
+<h2>Quick Install</h2>
+
+<pre><code>net install ivppmlhdfe, from("C:/your_path/github_repo/") replace</code></pre>
+
+<div class="note">
+  Replace <code>C:/your_path/github_repo/</code> with the actual path to this folder on your machine.
+</div>
+
+<h2>Installation (detailed)</h2>
+
+<h3>Step 1: Install dependencies</h3>
+<pre><code>ssc install reghdfe, replace
+ssc install ppmlhdfe, replace
+ssc install ftools, replace</code></pre>
+
+<h3>Step 2: Install ivppmlhdfe</h3>
+<pre><code>* Point to the unzipped folder you received
+net install ivppmlhdfe, from("C:/your_path/ivppmlhdfe/") replace</code></pre>
+
+<h3>Step 3 (optional): Install Julia backend for ~7x speed</h3>
+<p>The Julia backend (<code>ivppmlhdfejl</code>) uses <a href="https://github.com/FixedEffects/FixedEffects.jl">FixedEffects.jl</a> for FE absorption. Requires <a href="https://julialang.org/downloads/">Julia 1.9+</a>.</p>
+<pre><code>* Install the Stata-Julia bridge (David Roodman)
+ssc install julia, replace
+
+* Install ivppmlhdfejl (copies bridge files + Julia module to your ado directory)
+do "C:/your_path/ivppmlhdfe/julia/install_ivppmlhdfejl.do"</code></pre>
+
+<p>Usage is identical to <code>ivppmlhdfe</code> — just replace the command name:</p>
+<pre><code>* IV-PPML via Julia backend
+ivppmlhdfejl trade (policy = instrument), absorb(exp_year imp_year) vce(cluster pair_id)
+
+* Exogenous PPML via Julia backend
+ivppmlhdfejl trade x1 x2, absorb(exp_year imp_year) vce(cluster pair_id)</code></pre>
+
+<p>For pure Julia usage (Monte Carlo, bootstrap — ~7x faster than Stata), see the
+<code>julia/IVPPMLFixedEffectModels/</code> module and the <a href="README.md">README.md</a> for API details.</p>
+
+<!-- ============================================================ -->
+<h2>Syntax</h2>
+
+<pre><code>ivppmlhdfe depvar [exogvars] (endogvar = instrument) [if] [in] [pw/fw], absorb(absvars) [options]</code></pre>
+
+<h3>Options</h3>
+<table>
+  <tr><th>Option</th><th>Description</th></tr>
+  <tr><td><code>absorb(absvars)</code></td><td>Fixed effects to absorb (required). Factor syntax supported.</td></tr>
+  <tr><td><code>noabsorb</code></td><td>Estimate without fixed effects (mutually exclusive with <code>absorb()</code>).</td></tr>
+  <tr><td><code>vce(robust | cluster c1 [c2 [c3]])</code></td><td>Variance estimator. Default: robust. Multi-way clustering via CGM.</td></tr>
+  <tr><td><code>exposure(varname)</code></td><td>Exposure variable (log used as offset).</td></tr>
+  <tr><td><code>offset(varname)</code></td><td>Offset variable with coefficient fixed at 1.</td></tr>
+  <tr><td><code>d(newvarname)</code> / <code>d2</code></td><td>Save sum of absorbed FE. <code>d2</code> auto-names the variable. Required for <code>predict mu</code>.</td></tr>
+  <tr><td><code>separation(default | all | none | fe simplex relu mu)</code></td><td>Separation detection. Default: <code>fe simplex relu</code>. <code>all</code> adds in-loop <code>mu</code> detection.</td></tr>
+  <tr><td><code>standardize</code></td><td>Standardize X and Z columns to unit variance for numerical stability (results identical after back-transform).</td></tr>
+  <tr><td><code>guess(simple | mean)</code></td><td>Initial mu guess. <code>simple</code> (default) = 0.5*(y + mean(y)); <code>mean</code> = mean(y).</td></tr>
+  <tr><td><code>keepsingletons</code></td><td>Keep singleton observations (default drops them).</td></tr>
+  <tr><td><code>tagsep(newvarname)</code></td><td>Tag separated obs and exit (no estimation).</td></tr>
+  <tr><td><code>zvarname(newvarname)</code></td><td>Save ReLU separation certificate variable.</td></tr>
+  <tr><td><code>eform</code> / <code>irr</code></td><td>Display exponentiated coefficients (incidence-rate ratios).</td></tr>
+  <tr><td><code>tolerance(#)</code></td><td>Outer convergence tolerance. Default: 1e-8.</td></tr>
+  <tr><td><code>itolerance(#)</code></td><td>Inner FE-solver target tolerance. Default: max(1e-12, 0.1*tol).</td></tr>
+  <tr><td><code>maxiterations(#)</code></td><td>Max IRLS iterations. Default: 10000.</td></tr>
+  <tr><td><code>nolog</code></td><td>Suppress IRLS iteration log.</td></tr>
+  <tr><td><code>verbose(#)</code></td><td>-1 (silent), 0 (default), 1 (iterations), 2 (detail).</td></tr>
+</table>
+<p>Unrecognised options (e.g. <code>dof()</code>, <code>pool()</code>, <code>accel()</code>) are forwarded to <code>reghdfe</code> via the <code>absorb()</code> string.</p>
+
+<!-- ============================================================ -->
+<h2>Examples</h2>
+
+<h3>Two-way gravity model</h3>
+<pre><code>ivppmlhdfe trade (policy = instrument), absorb(exp#year imp#year) vce(cluster pair_id)</code></pre>
+
+<h3>Three-way gravity model with pair FE</h3>
+<pre><code>ivppmlhdfe trade (policy = instrument), absorb(exp#imp exp#year imp#year) vce(cluster pair_id)</code></pre>
+
+<h3>With exposure and prediction</h3>
+<pre><code>ivppmlhdfe trade (policy = instrument), absorb(exp#year imp#year) exposure(pop) d(fe_sum)
+predict muhat, mu
+predict resid, residuals</code></pre>
+
+<h3>Multi-way clustering (Cameron, Gelbach, Miller 2011)</h3>
+<pre><code>ivppmlhdfe trade (policy = instrument), absorb(exp#year imp#year) vce(cluster exp imp)</code></pre>
+
+<h3>Margins</h3>
+<pre><code>ivppmlhdfe y x2 (x1 = z), absorb(id year) d(fe_sum)
+margins, dydx(x2)</code></pre>
+
+<!-- ============================================================ -->
+<h2>Predict</h2>
+
+<p>After estimation, <code class="ic">predict</code> supports:</p>
+
+<table>
+  <tr><th>Statistic</th><th>Formula</th><th>Requires <code>d()</code>?</th></tr>
+  <tr><td><code>mu</code> (default)</td><td>exp(xb + d)</td><td>Yes</td></tr>
+  <tr><td><code>xb</code></td><td>X&beta; + _cons + offset</td><td>No</td></tr>
+  <tr><td><code>xbd</code> / <code>eta</code></td><td>xb + d</td><td>Yes</td></tr>
+  <tr><td><code>d</code></td><td>Sum of fixed effects</td><td>Yes</td></tr>
+  <tr><td><code>scores</code> / <code>residuals</code></td><td>y &minus; &mu;</td><td>Yes</td></tr>
+  <tr><td><code>pearson</code></td><td>(y &minus; &mu;) / &radic;&mu;</td><td>Yes</td></tr>
+  <tr><td><code>working</code></td><td>(y &minus; &mu;) / &mu;</td><td>Yes</td></tr>
+  <tr><td><code>deviance</code></td><td>Deviance residual</td><td>Yes</td></tr>
+</table>
+
+<!-- ============================================================ -->
+<h2>Feature Comparison with ppmlhdfe</h2>
+
+<table>
+  <tr><th>#</th><th>Feature</th><th>ppmlhdfe</th><th>ivppmlhdfe</th></tr>
+  <tr><td>1</td><td>Multi-way clustering (CGM)</td><td class="check">&#10003;</td><td class="check">&#10003;</td></tr>
+  <tr><td>2</td><td>Separation detection (fe)</td><td class="check">&#10003;</td><td class="check">&#10003;</td></tr>
+  <tr><td>3</td><td>Singleton drop</td><td class="check">&#10003;</td><td class="check">&#10003;</td></tr>
+  <tr><td>4</td><td>predict (mu, eta, scores, ...)</td><td class="check">&#10003;</td><td class="check">&#10003;</td></tr>
+  <tr><td>5</td><td>margins</td><td class="check">&#10003;</td><td class="check">&#10003;</td></tr>
+  <tr><td>6</td><td>estat ic / summarize / vce</td><td class="check">&#10003;</td><td class="check">&#10003;</td></tr>
+  <tr><td>7</td><td>exposure() / offset()</td><td class="check">&#10003;</td><td class="check">&#10003;</td></tr>
+  <tr><td>8</td><td>d() option</td><td class="check">&#10003;</td><td class="check">&#10003;</td></tr>
+  <tr><td>9</td><td>eform / irr</td><td class="check">&#10003;</td><td class="check">&#10003;</td></tr>
+  <tr><td>10</td><td>Factor variable syntax in absorb()</td><td class="check">&#10003;</td><td class="check">&#10003;</td></tr>
+</table>
+
+<!-- ============================================================ -->
+<h2>Post-Estimation Commands</h2>
+
+<p>All verified and supported:</p>
+<div class="two-col">
+<div>
+<ul>
+  <li><code class="ic">test</code>, <code class="ic">testparm</code></li>
+  <li><code class="ic">lincom</code>, <code class="ic">nlcom</code></li>
+  <li><code class="ic">predict</code></li>
+  <li><code class="ic">margins</code></li>
+</ul>
+</div>
+<div>
+<ul>
+  <li><code class="ic">estat ic</code>, <code class="ic">estat summarize</code>, <code class="ic">estat vce</code></li>
+  <li><code class="ic">regsave</code></li>
+  <li><code class="ic">esttab</code> / <code class="ic">estout</code></li>
+  <li><code class="ic">outreg2</code>, <code class="ic">coefplot</code></li>
+</ul>
+</div>
+</div>
+
+<!-- ============================================================ -->
+<h2>SPJ Bias Correction + Bootstrap SE</h2>
+
+<p>IV-PPML with fixed effects suffers from incidental parameter bias that does not arise in standard PPML.
+We recommend split-panel jackknife (SPJ) bias correction paired with bootstrap standard errors.
+Below are annotated templates for each model class. Ready-to-run do-files are also included in the <code>data/</code> folder:</p>
+
+<table>
+  <tr><th>Class</th><th>SPJ Method</th><th>Do-file</th></tr>
+  <tr><td>A</td><td>FVW 2016 (time + individual split)</td><td><code><a href="data/MC_SPJ_BTS_ClassA.do">MC_SPJ_BTS_ClassA.do</a></code></td></tr>
+  <tr><td>B</td><td>WZ 2021 (4-subpanel country split)</td><td><code><a href="data/MC_SPJ_BTS_ClassB.do">MC_SPJ_BTS_ClassB.do</a></code></td></tr>
+  <tr><td>C</td><td>8-panel (country &times; time split)</td><td><code><a href="data/MC_SPJ_BTS_ClassC.do">MC_SPJ_BTS_ClassC.do</a></code></td></tr>
+</table>
+
+<p>Each do-file loads the corresponding example dataset (<code>ivppmlhdfe_ClassX.dta</code>), computes the SPJ point estimate, and runs B=200 bootstrap replications for SE and 95% CI. To generate fresh data, run <code><a href="data/DGP.do">data/DGP.do</a></code>.</p>
+
+<div class="warn">
+  <strong>Computational cost.</strong> SPJ requires 3&ndash;9 estimations per dataset, times <em>B</em> bootstrap replications.
+  With B&nbsp;=&nbsp;200, expect 600&ndash;1,800 <code>ivppmlhdfe</code> calls per dataset.
+</div>
+
+<!-- ---- Class A ---- -->
+<h3>Class A: Individual + Time FE (Fern&aacute;ndez-Val &amp; Weidner 2016)</h3>
+
+<p>Bias: <em>O</em>(1/<em>T</em>) + <em>O</em>(1/<em>N</em>). SPJ splits both individuals and time periods into halves.</p>
+<p><strong>&beta;<sub>SPJ</sub> = 3&beta;<sub>full</sub> &minus; &beta;&#772;<sub>T/2</sub> &minus; &beta;&#772;<sub>N/2</sub></strong></p>
+
+<pre><code>* ============================================================
+* SPJ + Bootstrap for Class A (individual + time FE)
+* ============================================================
+
+use "data/ivppmlhdfe_ClassA.dta", clear
+
+local B = 200          
+* --- Step 1: Full-sample estimate ---
+ivppmlhdfe y x2 (x1 = z), absorb(id year) vce(robust)
+local b_full = _b[x1]
+
+* --- Step 2: Time-split (split T into two halves) ---
+summ year, meanonly
+local T_mid = floor((r(min) + r(max)) / 2)
+
+ivppmlhdfe y x2 (x1 = z) if year <= `T_mid', absorb(id year) vce(robust)
+local b_T1 = _b[x1]
+
+ivppmlhdfe y x2 (x1 = z) if year > `T_mid', absorb(id year) vce(robust)
+local b_T2 = _b[x1]
+
+local b_Thalf = (`b_T1' + `b_T2') / 2
+
+* --- Step 3: Individual-split (split N into two halves) ---
+tempvar half_id
+bysort id: gen byte `half_id' = (runiform() < 0.5) if _n == 1
+bysort id: replace `half_id' = `half_id'[1]
+
+ivppmlhdfe y x2 (x1 = z) if `half_id' == 1, absorb(id year) vce(robust)
+local b_N1 = _b[x1]
+
+ivppmlhdfe y x2 (x1 = z) if `half_id' == 0, absorb(id year) vce(robust)
+local b_N2 = _b[x1]
+
+local b_Nhalf = (`b_N1' + `b_N2') / 2
+
+* --- Step 4: SPJ point estimate ---
+local b_spj = 3 * `b_full' - `b_Thalf' - `b_Nhalf'
+di "SPJ estimate: `b_spj'"
+
+* --- Step 5: Bootstrap SE ---
+* Resample individuals (keep all T for each), recompute SPJ
+tempfile bootresults
+postfile pf b_spj_boot using `bootresults', replace
+
+forvalues b = 1/`B' {
+    preserve
+
+    * Resample N individuals with replacement (keep all T for each)
+    bsample, cluster(id) idcluster(new_id)
+    drop id
+    rename new_id id
+
+    * Recompute SPJ on bootstrap sample
+    capture {
+        qui ivppmlhdfe y x2 (x1 = z), absorb(id year) vce(robust)
+        local bb_full = _b[x1]
+
+        qui ivppmlhdfe y x2 (x1 = z) if year <= `T_mid', absorb(id year) vce(robust)
+        local bb_T1 = _b[x1]
+        qui ivppmlhdfe y x2 (x1 = z) if year > `T_mid', absorb(id year) vce(robust)
+        local bb_T2 = _b[x1]
+        local bb_Thalf = (`bb_T1' + `bb_T2') / 2
+
+        tempvar bhalf
+        bysort id: gen byte `bhalf' = (runiform() < 0.5) if _n == 1
+        bysort id: replace `bhalf' = `bhalf'[1]
+        qui ivppmlhdfe y x2 (x1 = z) if `bhalf' == 1, absorb(id year) vce(robust)
+        local bb_N1 = _b[x1]
+        qui ivppmlhdfe y x2 (x1 = z) if `bhalf' == 0, absorb(id year) vce(robust)
+        local bb_N2 = _b[x1]
+        local bb_Nhalf = (`bb_N1' + `bb_N2') / 2
+
+        local bb_spj = 3 * `bb_full' - `bb_Thalf' - `bb_Nhalf'
+        post pf (`bb_spj')
+    }
+    restore
+}
+postclose pf
+
+* --- Step 6: Compute SE and CI ---
+use `bootresults', clear
+summ b_spj_boot
+local se_boot = r(sd)
+_pctile b_spj_boot, p(2.5 97.5)
+local ci_lo = r(r1)
+local ci_hi = r(r2)
+
+di "SPJ estimate:  `b_spj'"
+di "Bootstrap SE:  `se_boot'"
+di "95% CI:        [`ci_lo', `ci_hi']"</code></pre>
+
+<!-- ---- Class B ---- -->
+<h3>Class B: Two-Way Gravity FE (Weidner &amp; Zylkin 2021)</h3>
+
+<p>Bias: <em>O</em>(1/<em>N<sub>c</sub></em>). SPJ splits countries into two halves, forming 4 subpanels.</p>
+<p><strong>&beta;<sub>SPJ</sub> = 2&beta;<sub>full</sub> &minus; &frac14;(&beta;<sub>aa</sub> + &beta;<sub>ab</sub> + &beta;<sub>ba</sub> + &beta;<sub>bb</sub>)</strong></p>
+<p>where a/b index country halves and the subscripts denote (exporter half, importer half).</p>
+
+<pre><code>* ============================================================
+* SPJ + Bootstrap for Class B (two-way gravity FE)
+* ============================================================
+
+use "data/ivppmlhdfe_ClassB.dta", clear
+
+local B = 200
+
+* --- Step 1: Full-sample estimate ---
+ivppmlhdfe y x2 (x1 = z), absorb(exp#year imp#year) vce(cluster pair)
+local b_full = _b[x1]
+
+* --- Step 2: Country-split (4 subpanels) ---
+* Assign each country to half A or B
+preserve
+keep exp
+duplicates drop
+gen byte half = (runiform() < 0.5)
+rename exp cid
+tempfile country_halves
+save `country_halves'
+restore
+
+* Merge halves for exporter and importer
+rename exp cid
+merge m:1 cid using `country_halves', nogenerate keep(match)
+rename cid exp
+rename half half_exp
+
+rename imp cid
+merge m:1 cid using `country_halves', nogenerate keep(match)
+rename cid imp
+rename half half_imp
+
+* Estimate on 4 subpanels
+local b_sum = 0
+forvalues ee = 0/1 {
+    forvalues ii = 0/1 {
+        qui ivppmlhdfe y x2 (x1 = z) if half_exp == `ee' & half_imp == `ii', ///
+            absorb(exp#year imp#year) vce(cluster pair)
+        local b_sum = `b_sum' + _b[x1]
+    }
+}
+local b_spj = 2 * `b_full' - `b_sum' / 4
+
+di "SPJ estimate: `b_spj'"
+
+* --- Step 3: Bootstrap SE ---
+* Resample directed pairs with replacement, recompute SPJ
+tempfile bootresults
+postfile pf b_spj_boot using `bootresults', replace
+
+forvalues b = 1/`B' {
+    preserve
+
+    * Resample directed pairs with replacement (keep all T for each)
+    bsample, cluster(pair) idcluster(new_pair)
+    drop pair
+    rename new_pair pair
+
+    capture {
+        qui ivppmlhdfe y x2 (x1 = z), absorb(exp#year imp#year) vce(cluster pair)
+        local bb_full = _b[x1]
+
+        * Re-split countries on bootstrap sample
+        preserve
+        keep exp
+        duplicates drop
+        gen byte half_c = (runiform() < 0.5)
+        rename exp cid
+        tempfile bch
+        save `bch'
+        restore
+
+        rename exp cid
+        merge m:1 cid using `bch', nogenerate keep(match)
+        rename cid exp
+        rename half_c half_exp_b
+
+        rename imp cid
+        merge m:1 cid using `bch', nogenerate keep(match)
+        rename cid imp
+        rename half_c half_imp_b
+
+        local bb_sum = 0
+        forvalues ee = 0/1 {
+            forvalues ii = 0/1 {
+                qui ivppmlhdfe y x2 (x1 = z) if half_exp_b == `ee' & half_imp_b == `ii', ///
+                    absorb(exp#year imp#year) vce(cluster pair)
+                local bb_sum = `bb_sum' + _b[x1]
+            }
+        }
+        local bb_spj = 2 * `bb_full' - `bb_sum' / 4
+        post pf (`bb_spj')
+    }
+    restore
+}
+postclose pf
+
+use `bootresults', clear
+summ b_spj_boot
+local se_boot = r(sd)
+_pctile b_spj_boot, p(2.5 97.5)
+di "SPJ estimate:  `b_spj'"
+di "Bootstrap SE:  `se_boot'"
+di "95% CI:        [`=r(r1)', `=r(r2)']"</code></pre>
+
+<!-- ---- Class C ---- -->
+<h3>Class C: Three-Way Gravity FE (8-panel SPJ)</h3>
+
+<p>Bias: <em>O</em>(1/<em>N<sub>c</sub></em>) + <em>O</em>(1/<em>T</em>). Requires crossing the country-split (4 subpanels) with a time-split (2 halves) = 8 subpanels.</p>
+<p><strong>&beta;<sup>J</sup><sub>8p</sub> = 4&beta;<sub>full</sub> &minus; 2&beta;&#772;<sub>country</sub> &minus; 2&beta;&#772;<sub>time</sub> + &beta;&#772;<sub>8cell</sub></strong></p>
+
+<pre><code>* ============================================================
+* 8-Panel SPJ + Bootstrap for Class C (three-way gravity FE)
+* ============================================================
+
+use "data/ivppmlhdfe_ClassC.dta", clear
+
+local B = 200
+local fe "exp#imp exp#year imp#year"
+local vce "vce(cluster pair)"
+
+* --- Step 1: Full-sample estimate ---
+ivppmlhdfe y x2 (x1 = z), absorb(`fe') `vce'
+local b_full = _b[x1]
+
+* --- Step 2: Country-split halves ---
+preserve
+keep exp
+duplicates drop
+gen byte half_c = (runiform() < 0.5)
+rename exp cid
+tempfile ch
+save `ch'
+restore
+rename exp cid
+merge m:1 cid using `ch', nogenerate keep(match)
+rename cid exp
+rename half_c half_exp
+rename imp cid
+merge m:1 cid using `ch', nogenerate keep(match)
+rename cid imp
+rename half_c half_imp
+
+* --- Step 3: Time-split half ---
+summ year, meanonly
+local T_mid = floor((r(min) + r(max)) / 2)
+gen byte half_t = (year <= `T_mid')
+
+* --- Step 4: 4 country subpanels (full T) ---
+local b_country = 0
+forvalues ee = 0/1 {
+    forvalues ii = 0/1 {
+        qui ivppmlhdfe y x2 (x1 = z) if half_exp == `ee' & half_imp == `ii', ///
+            absorb(`fe') `vce'
+        local b_country = `b_country' + _b[x1]
+    }
+}
+local b_country = `b_country' / 4
+
+* --- Step 5: 2 time subpanels (full N) ---
+local b_time = 0
+forvalues tt = 0/1 {
+    qui ivppmlhdfe y x2 (x1 = z) if half_t == `tt', absorb(`fe') `vce'
+    local b_time = `b_time' + _b[x1]
+}
+local b_time = `b_time' / 2
+
+* --- Step 6: 8 cross subpanels ---
+local b_8cell = 0
+local n_8 = 0
+forvalues ee = 0/1 {
+    forvalues ii = 0/1 {
+        forvalues tt = 0/1 {
+            qui ivppmlhdfe y x2 (x1 = z) ///
+                if half_exp == `ee' & half_imp == `ii' & half_t == `tt', ///
+                absorb(`fe') `vce'
+            local b_8cell = `b_8cell' + _b[x1]
+            local n_8 = `n_8' + 1
+        }
+    }
+}
+local b_8cell = `b_8cell' / `n_8'
+
+* --- Step 7: 8-panel SPJ ---
+local b_spj = 4 * `b_full' - 2 * `b_country' - 2 * `b_time' + `b_8cell'
+di "8p-SPJ estimate: `b_spj'"
+
+* --- Step 8: Bootstrap SE ---
+* Resample directed pairs with replacement, recompute 8p-SPJ
+* (Same bootstrap loop as Class B, but with 8-panel SPJ inside)
+* See Class B template above for the bootstrap skeleton.
+* Replace the SPJ formula with the 8-panel version (Steps 2-7).
+* Cost: 9 estimations per SPJ x B bootstrap = 1,800 calls.
+*
+* For the complete bootstrap loop, see: data/MC_SPJ_BTS_ClassC.do</code></pre>
+
+<!-- ============================================================ -->
+<h2>Example Data</h2>
+
+<p>The <code>data/</code> folder contains everything needed to test the estimator and SPJ bias correction:</p>
+
+<table>
+  <tr><th>File</th><th>Description</th></tr>
+  <tr><td><code><a href="data/DGP.do">DGP.do</a></code></td><td>Data generating process (creates all three datasets below)</td></tr>
+  <tr><td><code>ivppmlhdfe_ClassA.dta</code></td><td>N=100, T=10 panel with individual + time FE</td></tr>
+  <tr><td><code>ivppmlhdfe_ClassB.dta</code></td><td>Nc=30, T=20 gravity panel with two-way FE</td></tr>
+  <tr><td><code>ivppmlhdfe_ClassC.dta</code></td><td>Nc=30, T=20 gravity panel with three-way FE</td></tr>
+  <tr><td><code><a href="data/MC_SPJ_BTS_ClassA.do">MC_SPJ_BTS_ClassA.do</a></code></td><td>SPJ + bootstrap template for Class A</td></tr>
+  <tr><td><code><a href="data/MC_SPJ_BTS_ClassB.do">MC_SPJ_BTS_ClassB.do</a></code></td><td>SPJ + bootstrap template for Class B</td></tr>
+  <tr><td><code><a href="data/MC_SPJ_BTS_ClassC.do">MC_SPJ_BTS_ClassC.do</a></code></td><td>SPJ + bootstrap template for Class C</td></tr>
+</table>
+
+<!-- ============================================================ -->
+<h2>Known Limitations</h2>
+
+<ul>
+  <li><strong>Separation detection</strong>: All three separation detection methods (fe, simplex, relu) are supported, matching ppmlhdfe. The default applies all three in sequence.</li>
+  <li><strong>Convergence failures</strong>: rc=430 (non-convergence) and rc=9003 (runaway divergence) are now loud failures with clear error messages, matching Stata's native ivppmlhdfe.</li>
+  <li><strong>Collinearity detection</strong>: v0.9.4 automatically detects and drops collinear regressors/instruments (including factor-variable dummies fully absorbed by FE).</li>
+  <li><strong>Constant term</strong>: <code>_cons</code> is reported without a standard error (by design; use bootstrap for <code>_cons</code> inference).</li>
+  <li><strong>No first-stage diagnostics</strong>: no Cragg-Donald or Kleibergen-Paap statistics.</li>
+  <li><strong>Incidental parameter bias</strong>: IV-PPML has O(1/T) + O(1/N) point-estimate bias in short panels. We recommend split-panel jackknife (SPJ) + bootstrap for inference in gravity models.</li>
+</ul>
+
+<!-- ============================================================ -->
+<h2>References</h2>
+
+<ul>
+  <li>Mullahy, J. (1997). "Instrumental-variable estimation of count data models." <em>Review of Economics and Statistics</em>, 79(4), 586&ndash;593.</li>
+  <li>Correia, S., P. Guimaraes, and T. Zylkin (2020). "Fast Poisson estimation with high-dimensional fixed effects." <em>Stata Journal</em>, 20(1), 95&ndash;115.</li>
+  <li>Weidner, M. and T. Zylkin (2021). "Bias and consistency in three-way gravity models." <em>Journal of International Economics</em>, 132, 103513.</li>
+  <li>Fern&aacute;ndez-Val, I. and M. Weidner (2016). "Individual and time effects in nonlinear panel models with large N, T." <em>Journal of Econometrics</em>, 192(1), 291&ndash;312.</li>
+  <li>Cameron, A. C., J. B. Gelbach, and D. L. Miller (2011). "Robust inference with multiway clustering." <em>Journal of Business and Economic Statistics</em>, 29(2), 238&ndash;249.</li>
+</ul>
+
+<!-- ============================================================ -->
+<footer>
+  <p>ivppmlhdfe v0.9.4 (alpha) &middot; April 2026 &middot; Bug reports: <a href="https://github.com/ekwonomist/ivppmlhdfe/issues">GitHub Issues</a></p>
+</footer>
+
+</div>
+</body>
+</html>

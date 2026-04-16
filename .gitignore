@@ -1,0 +1,39 @@
+# Stata
+*.log
+*.smcl
+*.dta.bak
+*.stderr
+*.stmgmp
+
+# LaTeX auxiliary (note: stata.toc is a Stata package file, not LaTeX — do not ignore)
+*.aux
+*.out
+*.lof
+*.lot
+*.synctex.gz
+*.fdb_latexmk
+*.fls
+*.bbl
+*.blg
+
+# Julia
+*.jl.cov
+*.jl.*.cov
+*.jl.mem
+/Manifest.toml.bak
+
+# OS / editor junk
+.DS_Store
+Thumbs.db
+Desktop.ini
+*.swp
+*~
+.vscode/
+.idea/
+
+# Git internals
+.git-rewrite/
+
+# Local environment
+.env
+*.local

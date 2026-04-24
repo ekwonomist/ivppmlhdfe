@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ivppmlhdfe &mdash; IV-PPML with High-Dimensional Fixed Effects</title>
+<title>ivppmlhdfe &mdash; Instrumental-Variable Poisson PML with High-Dimensional Fixed Effects</title>
 <style>
   :root { --bg: #fafafa; --card: #fff; --border: #e0e0e0; --accent: #1a5276; --code-bg: #1c2833; --code-fg: #ecf0f1; --green: #27ae60; --red: #c0392b; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -46,19 +46,21 @@
 </div>
 
 <h1>ivppmlhdfe</h1>
-<p class="subtitle">Instrumental-Variables Poisson PML with High-Dimensional Fixed Effects</p>
+<p class="subtitle">Instrumental-Variable Poisson PML with High-Dimensional Fixed Effects</p>
 <p class="authors">Ohyun Kwon, Mario Larch, Jangsu Yoon, Yoto V. Yotov</p>
-<p><span class="badge badge-alpha">Alpha</span> <span class="badge badge-ver">v0.9.4</span></p>
+<p><span class="badge badge-ver">v0.9.4</span></p>
 
 <!-- ============================================================ -->
 <h2>Overview</h2>
 
-<p><code class="ic">ivppmlhdfe</code> estimates IV-PPML models with multiple sets of high-dimensional fixed effects. The estimator targets the additive moment condition <strong>E[Z(y &minus; &mu;)] = 0</strong> (<a href="https://doi.org/10.2307/2951380">Mullahy, 1997</a>, Eq.&nbsp;6), solved via iteratively reweighted 2SLS with fixed effects concentrated out at each iteration using <a href="https://github.com/sergiocorreia/reghdfe">reghdfe</a>.</p>
+<p><code class="ic">ivppmlhdfe</code> estimates IV-PPML models with multiple sets of high-dimensional fixed effects. The estimator targets the additive moment condition <strong>E[q(y &minus; &mu;)] = 0</strong> with <em>q</em>&nbsp;=&nbsp;(<em>x</em>',&nbsp;<em>z</em>')' (exogenous regressors stacked with excluded instruments), together with the per-group fixed-effect score &Sigma;<sub>g&isin;r</sub>(<em>y<sub>g</sub></em>&nbsp;&minus;&nbsp;<em>&mu;<sub>g</sub></em>)&nbsp;=&nbsp;0, following <a href="https://doi.org/10.1002/(SICI)1099-1255(199705)12:3%3C281::AID-JAE436%3E3.0.CO;2-1">Windmeijer and Santos Silva (1997)</a>. It is solved via iteratively reweighted 2SLS (<a href="https://journals.sagepub.com/doi/10.1177/1536867X20909691">Correia, Guimaraes, and Zylkin, 2020</a>) with fixed effects concentrated out at each iteration using <a href="https://github.com/sergiocorreia/reghdfe">reghdfe</a>.</p>
+
+<p>For incidental-parameter bias under IV-PPML and the split-panel jackknife (SPJ) + bootstrap remedy, see the companion paper Kwon, Larch, Yoon, and Yotov (2026).</p>
 
 <p>The command is designed to feel natural to users of <a href="https://github.com/sergiocorreia/ppmlhdfe">ppmlhdfe</a>. All standard post-estimation commands are supported.</p>
 
-<div class="warn">
-  <strong>Alpha release.</strong> This is a pre-release version shared with coauthors for testing. The API and results may change. Please report issues to Ohyun Kwon.
+<div class="note">
+  <strong>Public release.</strong> Please report issues to Ohyun Kwon at <a href="mailto:theekwonomist@gmail.com">theekwonomist@gmail.com</a>.
 </div>
 
 <!-- ============================================================ -->
@@ -94,7 +96,7 @@ ssc install ftools, replace</code></pre>
   <strong>Example data.</strong> The <code>data/</code> folder (example datasets and SPJ+bootstrap templates) is <em>not</em> bundled with <code>net install</code>. To use the examples, clone or download the repository manually from <a href="https://github.com/ekwonomist/ivppmlhdfe">GitHub</a>.
 </div>
 
-<h3>Step 3 (optional): Install Julia backend for ~7x speed</h3>
+<h3>Step 3 (optional): Install Julia backend for faster repeated estimation</h3>
 <p>The Julia backend (<code>ivppmlhdfejl</code>) uses <a href="https://github.com/FixedEffects/FixedEffects.jl">FixedEffects.jl</a> for FE absorption. Requires <a href="https://julialang.org/downloads/">Julia 1.9+</a>.</p>
 <pre><code>* Install the Stata-Julia bridge (David Roodman)
 ssc install julia, replace
@@ -109,13 +111,13 @@ ivppmlhdfejl trade (policy = instrument), absorb(exp#year imp#year) vce(cluster 
 * Exogenous PPML via Julia backend
 ivppmlhdfejl trade x1 x2, absorb(exp#year imp#year) vce(cluster pair)</code></pre>
 
-<p>For pure Julia usage (Monte Carlo, bootstrap — ~7x faster than Stata), see the
+<p>For pure Julia usage (Monte Carlo, bootstrap — substantially faster than Stata since the per-call bridge overhead is avoided), see the
 <code>julia/IVPPMLFixedEffectModels/</code> module and the <a href="README.md">README.md</a> for API details.</p>
 
 <!-- ============================================================ -->
 <h2>Syntax</h2>
 
-<pre><code>ivppmlhdfe depvar [exogvars] (endogvar = instrument) [if] [in] [pw/fw], absorb(absvars) [options]</code></pre>
+<pre><code>ivppmlhdfe depvar [exogvars] (endogvars = instruments) [if] [in] [pw/fw], absorb(absvars) [options]</code></pre>
 
 <h3>Options</h3>
 <table>
@@ -222,9 +224,7 @@ margins, dydx(x2)</code></pre>
 <!-- ============================================================ -->
 <h2>SPJ Bias Correction + Bootstrap SE</h2>
 
-<p>IV-PPML with fixed effects suffers from incidental parameter bias that does not arise in standard PPML.
-We recommend split-panel jackknife (SPJ) bias correction paired with bootstrap standard errors.
-Below are annotated templates for each model class. Ready-to-run do-files are also included in the <code>data/</code> folder:</p>
+<p>IV-PPML with fixed effects suffers from incidental parameter bias that does not arise in standard PPML. The companion paper Kwon, Larch, Yoon, and Yotov (2026) derives the bias orders by FE structure and develops a split-panel jackknife (SPJ) bias correction paired with bootstrap standard errors. Below are annotated templates for each model class. Ready-to-run do-files are also included in the <code>data/</code> folder. <strong>See the paper for the full derivations, the recommended bootstrap aggregator (median CI-implied SE), and the Monte Carlo evidence.</strong></p>
 
 <table>
   <tr><th>Class</th><th>SPJ Method</th><th>Do-file</th></tr>
@@ -233,17 +233,17 @@ Below are annotated templates for each model class. Ready-to-run do-files are al
   <tr><td>C</td><td>8-panel (country &times; time split)</td><td><code><a href="data/MC_SPJ_BTS_ClassC.do">MC_SPJ_BTS_ClassC.do</a></code></td></tr>
 </table>
 
-<p>Each do-file loads the corresponding example dataset (<code>ivppmlhdfe_ClassX.dta</code>), computes the SPJ point estimate, and runs B=200 bootstrap replications for SE and 95% CI. To generate fresh data, run <code><a href="data/DGP.do">data/DGP.do</a></code>.</p>
+<p>Each do-file loads the corresponding example dataset (<code>ivppmlhdfe_ClassX.dta</code>), computes the SPJ point estimate, and runs B=1000 bootstrap replications (matching the paper's MC design) for SE and 95% CI. To generate fresh data, run <code><a href="data/DGP.do">data/DGP.do</a></code>.</p>
 
 <div class="warn">
-  <strong>Computational cost.</strong> SPJ requires 3&ndash;9 estimations per dataset, times <em>B</em> bootstrap replications.
-  With B&nbsp;=&nbsp;200, expect 600&ndash;1,800 <code>ivppmlhdfe</code> calls per dataset.
+  <strong>Computational cost.</strong> SPJ requires 3&ndash;8 estimations per dataset, times <em>B</em> bootstrap replications.
+  With B&nbsp;=&nbsp;1000, expect 3,000&ndash;8,000 <code>ivppmlhdfe</code> calls per dataset.
 </div>
 
 <!-- ---- Class A ---- -->
 <h3>Class A: Individual + Time FE (Fern&aacute;ndez-Val &amp; Weidner 2016)</h3>
 
-<p>Bias: <em>O</em>(1/<em>T</em>) + <em>O</em>(1/<em>N</em>). SPJ splits both individuals and time periods into halves.</p>
+<p>Bias: <em>O</em>(1/<em>T</em>&nbsp;+&nbsp;1/<em>N</em>). SPJ splits both individuals and time periods into halves.</p>
 <p><strong>&beta;<sub>SPJ</sub> = 3&beta;<sub>full</sub> &minus; &beta;&#772;<sub>T/2</sub> &minus; &beta;&#772;<sub>N/2</sub></strong></p>
 
 <pre><code>* ============================================================
@@ -252,7 +252,7 @@ Below are annotated templates for each model class. Ready-to-run do-files are al
 
 use "data/ivppmlhdfe_ClassA.dta", clear
 
-local B = 200          
+local B = 1000          
 * --- Step 1: Full-sample estimate ---
 ivppmlhdfe y x2 (x1 = z), absorb(id year) vce(robust)
 local b_full = _b[x1]
@@ -351,7 +351,7 @@ di "95% CI:        [`ci_lo', `ci_hi']"</code></pre>
 
 use "data/ivppmlhdfe_ClassB.dta", clear
 
-local B = 200
+local B = 1000
 
 * --- Step 1: Full-sample estimate ---
 ivppmlhdfe y x2 (x1 = z), absorb(exp#year imp#year) vce(cluster pair)
@@ -455,7 +455,7 @@ di "95% CI:        [`=r(r1)', `=r(r2)']"</code></pre>
 <!-- ---- Class C ---- -->
 <h3>Class C: Three-Way Gravity FE (8-panel SPJ)</h3>
 
-<p>Bias: <em>O</em>(1/<em>N<sub>c</sub></em>) + <em>O</em>(1/<em>T</em>). Requires crossing the country-split (4 subpanels) with a time-split (2 halves) = 8 subpanels.</p>
+<p>Bias: <em>O</em>(1/<em>N<sub>c</sub></em>&nbsp;+&nbsp;1/<em>T</em>). Requires crossing the country-split (4 subpanels) with a time-split (2 halves) = 8 subpanels.</p>
 <p><strong>&beta;<sup>J</sup><sub>8p</sub> = 4&beta;<sub>full</sub> &minus; 2&beta;&#772;<sub>country</sub> &minus; 2&beta;&#772;<sub>time</sub> + &beta;&#772;<sub>8cell</sub></strong></p>
 
 <pre><code>* ============================================================
@@ -464,7 +464,7 @@ di "95% CI:        [`=r(r1)', `=r(r2)']"</code></pre>
 
 use "data/ivppmlhdfe_ClassC.dta", clear
 
-local B = 200
+local B = 1000
 local fe "exp#imp exp#year imp#year"
 local vce "vce(cluster pair)"
 
@@ -539,7 +539,7 @@ di "8p-SPJ estimate: `b_spj'"
 * (Same bootstrap loop as Class B, but with 8-panel SPJ inside)
 * See Class B template above for the bootstrap skeleton.
 * Replace the SPJ formula with the 8-panel version (Steps 2-7).
-* Cost: 9 estimations per SPJ x B bootstrap = 1,800 calls.
+* Cost: 8 estimations per SPJ x B bootstrap = 8,000 calls.
 *
 * For the complete bootstrap loop, see: data/MC_SPJ_BTS_ClassC.do</code></pre>
 
@@ -563,16 +563,17 @@ di "8p-SPJ estimate: `b_spj'"
 <h2>References</h2>
 
 <ul>
-  <li>Mullahy, J. (1997). "Instrumental-variable estimation of count data models." <em>Review of Economics and Statistics</em>, 79(4), 586&ndash;593.</li>
+  <li>Windmeijer, F. A. G., and J. M. C. Santos Silva (1997). "Endogeneity in count data models: An application to demand for health care." <em>Journal of Applied Econometrics</em>, 12(3), 281&ndash;294.</li>
   <li>Correia, S., P. Guimaraes, and T. Zylkin (2020). "Fast Poisson estimation with high-dimensional fixed effects." <em>Stata Journal</em>, 20(1), 95&ndash;115.</li>
   <li>Weidner, M. and T. Zylkin (2021). "Bias and consistency in three-way gravity models." <em>Journal of International Economics</em>, 132, 103513.</li>
   <li>Fern&aacute;ndez-Val, I. and M. Weidner (2016). "Individual and time effects in nonlinear panel models with large N, T." <em>Journal of Econometrics</em>, 192(1), 291&ndash;312.</li>
   <li>Cameron, A. C., J. B. Gelbach, and D. L. Miller (2011). "Robust inference with multiway clustering." <em>Journal of Business and Economic Statistics</em>, 29(2), 238&ndash;249.</li>
+  <li>Mullahy, J. (1997). "Instrumental-variable estimation of count data models." <em>Review of Economics and Statistics</em>, 79(4), 586&ndash;593. <em>(Related but distinct: a transformation estimator for multiplicative unobserved heterogeneity, not the additive moment used here.)</em></li>
 </ul>
 
 <!-- ============================================================ -->
 <footer>
-  <p>ivppmlhdfe v0.9.4 (alpha) &middot; April 2026 &middot; Bug reports: <a href="https://github.com/ekwonomist/ivppmlhdfe/issues">GitHub Issues</a></p>
+  <p>ivppmlhdfe v0.9.4 &middot; April 2026 &middot; Report issues to Ohyun Kwon (<a href="mailto:theekwonomist@gmail.com">theekwonomist@gmail.com</a>) or open a <a href="https://github.com/ekwonomist/ivppmlhdfe/issues">GitHub issue</a>.</p>
 </footer>
 
 </div>

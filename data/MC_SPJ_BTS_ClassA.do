@@ -6,7 +6,7 @@
 
 use "ivppmlhdfe_ClassA.dta", clear
 
-local B = 200
+local B = 1000
 
 * --- Step 1: Full-sample estimate ---
 ivppmlhdfe y x2 (x1 = z), absorb(id year) vce(robust)

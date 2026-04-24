@@ -1,12 +1,15 @@
-*! ivppmlhdfejl 0.9.4  14apr2026
+*! ivppmlhdfejl 0.9.4  23apr2026
 *! (IV-)PPML with High-Dimensional Fixed Effects — Julia backend
 *! Architecture: Path 3 — single Julia call with solver reuse (update_weights!)
 *! Mirrors reghdfejl / GLFixedEffectModels.jl pattern
 *!
-*! Algorithm: IRLS-IV  (Mullahy 1997 GMM via iteratively reweighted 2SLS)
-*!            Without IV specification, reduces to standard PPML (ppmlhdfejl)
+*! Algorithm: IRLS-IV targeting the additive moment E[q(y-mu)]=0, q=(x',z')',
+*!            following Windmeijer & Santos Silva (1997). Solved via iteratively
+*!            reweighted 2SLS. Without IV specification, reduces to standard
+*!            PPML (ppmlhdfejl).
 *! FE absorption via FixedEffects.jl (iterative demeaning)
-*! Authors: Ohyun Kwon
+*! Authors: Ohyun Kwon, Mario Larch, Jangsu Yoon, Yoto V. Yotov
+*! Contact: Ohyun Kwon, theekwonomist@gmail.com
 *!
 *! Syntax (IV):
 *!   ivppmlhdfejl depvar [exogvars] (endogvars = excluded_instruments) [if] [in] [pw], ///
@@ -1166,10 +1169,10 @@ program _ivppmlhdfejl, eclass
 	// ---------- 14.  Display ----------
 	di as txt _n "{hline 78}"
 	if `is_iv' {
-		di as txt "IV-PPML with High-Dimensional Fixed Effects  (Julia backend v0.9.3)"
+		di as txt "IV-PPML with High-Dimensional Fixed Effects  (Julia backend v0.9.4)"
 	}
 	else {
-		di as txt "PPML with High-Dimensional Fixed Effects  (Julia backend v0.9.3)"
+		di as txt "PPML with High-Dimensional Fixed Effects  (Julia backend v0.9.4)"
 	}
 	di as txt "{hline 78}"
 

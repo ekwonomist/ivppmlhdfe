@@ -65,12 +65,15 @@
 {title:Description}
 
 {pstd}
-{cmd:ivppmlhdfe} estimates an instrumental-variables Poisson pseudo-maximum
-likelihood (IV-PPML) model with high-dimensional fixed effects.  The estimator
-targets the additive moment condition E[Z(y - mu)] = 0
-({help ivppmlhdfe##references:Mullahy 1997}, Eq. 6), solved via iteratively
-reweighted 2SLS with fixed effects concentrated out at each iteration using
-{help reghdfe}.
+{cmd:ivppmlhdfe} estimates an instrumental-variable Poisson pseudo-maximum
+likelihood (IV-PPML) model with high-dimensional fixed effects. The estimator
+targets the additive moment condition E[q(y - mu)] = 0 with
+q = (x', z')' (exogenous regressors stacked with excluded instruments),
+together with the per-group fixed-effect score sum_{g in r}(y_g - mu_g) = 0,
+following {help ivppmlhdfe##references:Windmeijer and Santos Silva (1997)}.
+It is solved via iteratively reweighted 2SLS
+({help ivppmlhdfe##references:Correia, Guimaraes, and Zylkin 2020}), with
+fixed effects concentrated out at each iteration using {help reghdfe}.
 
 {pstd}
 The command handles models with multiple sets of high-dimensional fixed
@@ -79,9 +82,21 @@ effects, including the two-way (exporter-year, importer-year) and three-way
 of international trade.
 
 {pstd}
-For {bf:just-identified} models, the 2SLS first-order condition is equivalent
-to Mullahy's moment condition.  For overidentified models, the 2SLS imposes
-a projected condition.
+For {bf:just-identified} models, the 2SLS first-order condition coincides
+with the moment system above. For {bf:overidentified} models, the 2SLS
+imposes a projected condition (analogous to {help ivreg2}).
+
+{pstd}
+{bf:Incidental parameter problem (IPP) and the SPJ remedy.} The Poisson
+'score cancellation' that renders standard PPML immune to leading-order
+incidental parameter bias does not carry over to the IV-PPML case, so
+estimates here can be biased even when standard PPML is not. For the bias
+orders by FE structure (individual + time, source-time + dest-time,
+source-time + dest-time + pair), the split-panel jackknife (SPJ)
+formulas, the recommended bootstrap aggregator, and Monte Carlo evidence,
+see Kwon, Larch, Yoon, and Yotov (2026). Ready-to-run SPJ + bootstrap
+templates for each FE class are shipped under {bf:data/} on the GitHub
+repository.
 
 {pstd}
 v0.9.4 automatically detects and drops regressors and instruments that are
@@ -369,15 +384,20 @@ and does not have an analytical SE.  Use bootstrap for inference on
 {title:References}
 
 {phang}
-Mullahy, J. 1997.
-Instrumental-variable estimation of count data models: Applications to
-models of cigarette smoking behavior.
-{it:Review of Economics and Statistics} 79(4): 586-593.
+Windmeijer, F. A. G., and J. M. C. Santos Silva. 1997.
+Endogeneity in count data models: An application to demand for health care.
+{it:Journal of Applied Econometrics} 12(3): 281-294.
 
 {phang}
 Correia, S., P. Guimaraes, and T. Zylkin. 2020.
 Fast Poisson estimation with high-dimensional fixed effects.
 {it:Stata Journal} 20(1): 95-115.
+
+{phang}
+Kwon, O., M. Larch, J. Yoon, and Y. V. Yotov. 2026.
+Instrumental-Variable Poisson PML with High-Dimensional Fixed Effects.
+Working paper. (For IPP bias orders, the SPJ + bootstrap remedy, and
+Monte Carlo evidence.)
 
 {phang}
 Weidner, M. and T. Zylkin. 2021.
@@ -394,10 +414,18 @@ Cameron, A. C., J. B. Gelbach, and D. L. Miller. 2011.
 Robust inference with multiway clustering.
 {it:Journal of Business and Economic Statistics} 29(2): 238-249.
 
+{phang}
+Mullahy, J. 1997.
+Instrumental-variable estimation of count data models: Applications to
+models of cigarette smoking behavior.
+{it:Review of Economics and Statistics} 79(4): 586-593.
+(Related but distinct: a transformation estimator for multiplicative
+unobserved heterogeneity, not the additive moment used here.)
+
 
 {marker author}{...}
-{title:Author}
+{title:Authors}
 
 {pstd}Ohyun Kwon, Mario Larch, Jangsu Yoon, Yoto V. Yotov{p_end}
 
-{pstd}Bug reports: {browse "https://github.com/ekwonomist/ivppmlhdfe/issues"}{p_end}
+{pstd}Report issues to Ohyun Kwon at {browse "mailto:theekwonomist@gmail.com":theekwonomist@gmail.com} or open a {browse "https://github.com/ekwonomist/ivppmlhdfe/issues":GitHub issue}.{p_end}

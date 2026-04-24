@@ -33,7 +33,7 @@ set seed 1235
 * --- DGP parameters ---
 local beta1   = 0.5
 local beta2   = 0.3
-local sigma_v = 1.0
+local sigma_v = 1.5
 local rho_ev  = 0.5
 local pi_z    = 0.8
 local sigma_a = 0.3

@@ -8,10 +8,12 @@
 #   - DataFrame-based input (like reghdfejl)
 #   - Result struct with standard accessors (coef, vcov, nobs, etc.)
 #
-# Algorithm: IRLS-IV targeting E[Z(y-mu)]=0 (Mullahy 1997) via iteratively reweighted 2SLS
-# FE absorption via FixedEffects.jl (iterative demeaning / FWL)
+# Algorithm: IRLS-IV targeting the additive moment E[q(y-mu)]=0, q=(x',z')',
+# following Windmeijer & Santos Silva (1997). Solved via iteratively reweighted 2SLS.
+# FE absorption via FixedEffects.jl (iterative demeaning / FWL).
 #
-# Authors: Ohyun Kwon
+# Authors: Ohyun Kwon, Mario Larch, Jangsu Yoon, Yoto V. Yotov
+# Contact: Ohyun Kwon, theekwonomist@gmail.com
 # Date: 2026-03-14
 # Updated: 2026-04-12 — v0.9.2 feature parity with ivppmlhdfe.ado
 #   * standardize option (X,Z column normalization + back-transform)

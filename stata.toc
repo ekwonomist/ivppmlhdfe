@@ -1,5 +1,5 @@
 v 3
 d ivppmlhdfe: IV-PPML with High-Dimensional Fixed Effects
-d Ohyun Kwon
-d Distribution-Date: 20260415
+d Ohyun Kwon, Mario Larch, Jangsu Yoon, Yoto V. Yotov
+d Distribution-Date: 20260423
 p ivppmlhdfe

@@ -6,7 +6,7 @@
 
 use "ivppmlhdfe_ClassC.dta", clear
 
-local B = 200
+local B = 1000
 local fe "exp#imp exp#year imp#year"
 local vce "vce(cluster pair)"
 

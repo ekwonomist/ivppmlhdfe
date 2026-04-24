@@ -1,7 +1,11 @@
-*! ivppmlhdfe 0.9.4  13apr2026
+*! ivppmlhdfe 0.9.4  23apr2026
 *! IV-PPML with High-Dimensional Fixed Effects
-*! Algorithm: IRLS-IV targeting E[Z(y-mu)]=0 (Mullahy 1997) via iteratively reweighted 2SLS
-*! Authors: Ohyun Kwon
+*! Algorithm: IRLS-IV targeting the additive moment E[q(y-mu)]=0, q=(x',z')',
+*!            following Windmeijer & Santos Silva (1997). Solved via iteratively
+*!            reweighted 2SLS (Correia, Guimaraes & Zylkin 2020), with FE
+*!            concentrated out at each iteration through reghdfe.
+*! Authors: Ohyun Kwon, Mario Larch, Jangsu Yoon, Yoto V. Yotov
+*! Contact: Ohyun Kwon, theekwonomist@gmail.com
 *!
 *! Syntax:
 *!   ivppmlhdfe depvar [exogvars] (endogvars = excluded_instruments) [if] [in] [pw], ///

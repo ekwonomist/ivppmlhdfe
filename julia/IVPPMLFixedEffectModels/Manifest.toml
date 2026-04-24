@@ -165,7 +165,7 @@ version = "0.3.28"
 deps = ["CSV", "Distributions", "FixedEffects", "LinearAlgebra", "PrecompileTools", "Printf", "SpecialFunctions", "StatsBase"]
 path = "."
 uuid = "fbf2f18d-b04c-4f09-b658-baf9122d0788"
-version = "0.8.0"
+version = "0.9.4"
 
 [[deps.InlineStrings]]
 git-tree-sha1 = "8f3d257792a522b4601c24a577954b0a8cd7334d"

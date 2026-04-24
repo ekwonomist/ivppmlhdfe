@@ -1,10 +1,8 @@
-> **GitHub version.** For the local browsing version with full annotated code examples, open [`readme.html`](readme.html).
-
 # ivppmlhdfe
 
 Instrumental-variables Poisson pseudo-maximum likelihood estimation with high-dimensional fixed effects.
 
-**Alpha release** (v0.9.4) — shared with coauthors for testing. Please report issues to Ohyun Kwon.
+**Alpha release** (v0.9.4) — please report issues to Ohyun Kwon.
 
 Ohyun Kwon, Mario Larch, Jangsu Yoon, Yoto V. Yotov
 
@@ -12,31 +10,47 @@ Ohyun Kwon, Mario Larch, Jangsu Yoon, Yoto V. Yotov
 
 `ivppmlhdfe` estimates IV-PPML models with multiple sets of high-dimensional fixed effects. The estimator targets the additive moment condition E[Z(y - μ)] = 0 ([Mullahy, 1997](https://doi.org/10.2307/2951380), Eq. 6), solved via iteratively reweighted 2SLS with fixed effects concentrated out at each iteration using [`reghdfe`](https://github.com/sergiocorreia/reghdfe).
 
-The command is designed to feel natural to users of [`ppmlhdfe`](https://github.com/sergiocorreia/ppmlhdfe). All standard post-estimation commands are supported.
+The command is designed to feel natural to users of [`ppmlhdfe`](https://github.com/sergiocorreia/ppmlhdfe). All standard post-estimation commands are supported. Both **just-identified** and **overidentified** models are supported, and multiple endogenous regressors are allowed.
 
 | Class | Dimension | FE Structure | Example |
 |-------|-----------|--------------|---------|
 | A | N × T | Individual + Time | `absorb(id year)` |
-| B | N × N × T | Exporter-year + Importer-year | `absorb(exp#yr imp#yr)` |
-| C | N × N × T | Pair + Exporter-year + Importer-year | `absorb(exp#imp exp#yr imp#yr)` |
-
-**Note:** Both **just-identified** and **overidentified** models are supported. Multiple endogenous regressors are allowed.
+| B | N × N × T | Exporter-year + Importer-year | `absorb(exp#year imp#year)` |
+| C | N × N × T | Pair + Exporter-year + Importer-year | `absorb(exp#imp exp#year imp#year)` |
 
 ## Installation
 
-1. [Download the latest release](https://github.com/ekwonomist/ivppmlhdfe/archive/refs/heads/main.zip) and extract to a local folder.
-
-2. Install dependencies:
+Install dependencies:
 ```stata
 ssc install reghdfe, replace
 ssc install ppmlhdfe, replace
 ssc install ftools, replace
 ```
 
-3. Add the folder to your Stata ado path:
+Install `ivppmlhdfe`:
 ```stata
-adopath ++ "path/to/ivppmlhdfe"
+net install ivppmlhdfe, from("https://raw.githubusercontent.com/ekwonomist/ivppmlhdfe/main/") replace
 ```
+
+> **Example data.** The `data/` folder (example datasets and SPJ+bootstrap templates) is not bundled with `net install`. To use the examples, clone or download the repository manually from [GitHub](https://github.com/ekwonomist/ivppmlhdfe).
+
+## Quick Example
+
+```stata
+* Individual + time fixed effects (Class A)
+use "data/ivppmlhdfe_ClassA.dta", clear
+ivppmlhdfe y x2 (x1 = z), absorb(id year) vce(robust)
+
+* Two-way gravity (Class B)
+use "data/ivppmlhdfe_ClassB.dta", clear
+ivppmlhdfe y x2 (x1 = z), absorb(exp#year imp#year) vce(cluster pair)
+
+* Three-way gravity with pair FE (Class C)
+use "data/ivppmlhdfe_ClassC.dta", clear
+ivppmlhdfe y x2 (x1 = z), absorb(exp#imp exp#year imp#year) vce(cluster pair)
+```
+
+For full option documentation, run `help ivppmlhdfe` after installation.
 
 ## Syntax
 
@@ -103,25 +117,19 @@ All verified: `test`, `testparm`, `lincom`, `nlcom`, `predict`, `margins`, `esta
 | 9 | eform / irr | ✓ | ✓ |
 | 10 | Factor variable syntax in absorb() | ✓ | ✓ |
 
-## Examples
+## Further Examples
 
 ```stata
-* Two-way gravity model
-ivppmlhdfe trade (policy = instrument), absorb(exp_year imp_year) vce(cluster pair_id)
-
-* Three-way gravity model with pair FE
-ivppmlhdfe trade (policy = instrument), absorb(exp_year imp_year pair_id) vce(cluster pair_id)
-
 * With exposure and prediction
-ivppmlhdfe trade (policy = instrument), absorb(exp_year imp_year) exposure(pop) d(fe_sum)
+ivppmlhdfe y x2 (x1 = z), absorb(exp#year imp#year) exposure(pop) d(fe_sum)
 predict muhat, mu
 predict resid, residuals
 
 * Multi-way clustering
-ivppmlhdfe trade (policy = instrument), absorb(exp_year imp_year) vce(cluster exp imp)
+ivppmlhdfe y x2 (x1 = z), absorb(exp#year imp#year) vce(cluster exp imp)
 
 * Incidence-rate ratios
-ivppmlhdfe trade (policy = instrument), absorb(exp_year imp_year) vce(cluster pair_id) irr
+ivppmlhdfe y x2 (x1 = z), absorb(exp#year imp#year) vce(cluster pair) irr
 
 * Margins
 ivppmlhdfe y x2 (x1 = z), absorb(id year) d(fe_sum)
@@ -147,9 +155,9 @@ A Julia-powered backend is available for faster estimation. It uses [`FixedEffec
 ssc install julia, replace
 ```
 
-2. Run the automated installer (copies bridge files + Julia module to your ado directory):
+2. From your cloned/downloaded ivppmlhdfe repo, run the installer:
 ```stata
-do "C:/your_path/ivppmlhdfe/julia/install_ivppmlhdfejl.do"
+do "julia/install_ivppmlhdfejl.do"
 ```
 
 3. First run will install Julia dependencies and precompile (~30s one-time cost).
@@ -158,10 +166,10 @@ do "C:/your_path/ivppmlhdfe/julia/install_ivppmlhdfejl.do"
 
 ```stata
 * IV Poisson PML (same syntax as ivppmlhdfe)
-ivppmlhdfejl trade (policy = instrument), absorb(exp_year imp_year) vce(cluster pair_id)
+ivppmlhdfejl y x2 (x1 = z), absorb(exp#year imp#year) vce(cluster pair)
 
 * Exogenous Poisson PML (no endogenous variable — runs ppmlhdfejl)
-ivppmlhdfejl trade x1 x2, absorb(exp_year imp_year) vce(cluster pair_id)
+ivppmlhdfejl y x2 x1, absorb(exp#year imp#year) vce(cluster pair)
 ```
 
 ### Three Ways to Run
@@ -176,13 +184,13 @@ ivppmlhdfejl trade x1 x2, absorb(exp_year imp_year) vce(cluster pair_id)
 
 IV-PPML with fixed effects suffers from incidental parameter bias that does not arise in standard PPML. We recommend split-panel jackknife (SPJ) bias correction paired with bootstrap standard errors.
 
-Ready-to-run do-files with example data are included in the `data/` folder:
+Ready-to-run do-files with example data are included in the `data/` folder (clone the repo from GitHub to access them):
 
 | Class | SPJ Method | Formula | Do-file |
 |-------|-----------|---------|---------|
 | A | FVW 2016 (time + individual split) | beta_SPJ = 3*b_full - b_Thalf - b_Nhalf | [`MC_SPJ_BTS_ClassA.do`](data/MC_SPJ_BTS_ClassA.do) |
 | B | WZ 2021 (4-subpanel country split) | beta_SPJ = 2*b_full - mean(b_aa, b_ab, b_ba, b_bb) | [`MC_SPJ_BTS_ClassB.do`](data/MC_SPJ_BTS_ClassB.do) |
-| C | 8-panel (country x time split) | beta_8p = 4*b_full - 2*b_country - 2*b_time + b_8cell | [`MC_SPJ_BTS_ClassC.do`](data/MC_SPJ_BTS_ClassC.do) |
+| C | 8-panel (country × time split) | beta_8p = 4*b_full - 2*b_country - 2*b_time + b_8cell | [`MC_SPJ_BTS_ClassC.do`](data/MC_SPJ_BTS_ClassC.do) |
 
 Each script loads example data (`ivppmlhdfe_ClassX.dta`), computes the SPJ point estimate, and runs B=200 bootstrap replications to produce SE and 95% CI. See [`readme.html`](readme.html) for full annotated code with step-by-step explanations.
 
@@ -192,7 +200,7 @@ To generate fresh example data, run [`data/DGP.do`](data/DGP.do).
 
 ## Example Data
 
-The `data/` folder contains:
+The `data/` folder (available when you clone the repository) contains:
 
 | File | Description |
 |------|-------------|
@@ -204,15 +212,6 @@ The `data/` folder contains:
 | `MC_SPJ_BTS_ClassB.do` | SPJ + bootstrap template for Class B |
 | `MC_SPJ_BTS_ClassC.do` | SPJ + bootstrap template for Class C |
 
-## Known Limitations
-
-- **Separation detection**: All three separation detection methods (fe, simplex, relu) are supported, matching ppmlhdfe. The default applies all three in sequence.
-- **Convergence failures**: rc=430 (non-convergence) and rc=9003 (runaway divergence) are now loud failures with clear error messages, matching Stata's native ivppmlhdfe.
-- **Collinearity detection**: v0.9.4 automatically detects and drops collinear regressors/instruments (including factor-variable dummies fully absorbed by FE).
-- **Constant term**: `_cons` is reported without a standard error (by design; use bootstrap for `_cons` inference).
-- **No first-stage diagnostics**: No Cragg-Donald or Kleibergen-Paap statistics.
-- **Incidental parameter bias**: IV-PPML has O(1/T) + O(1/N) point-estimate bias in short panels. Use the SPJ + bootstrap templates above.
-
 ## References
 
 - Mullahy, J. (1997). "Instrumental-variable estimation of count data models." *Review of Economics and Statistics*, 79(4), 586-593.
@@ -220,9 +219,5 @@ The `data/` folder contains:
 - Weidner, M. and T. Zylkin (2021). "Bias and consistency in three-way gravity models." *Journal of International Economics*, 132, 103513.
 - Fernandez-Val, I. and M. Weidner (2016). "Individual and time effects in nonlinear panel models with large N, T." *Journal of Econometrics*, 192(1), 291-312.
 - Cameron, A. C., J. B. Gelbach, and D. L. Miller (2011). "Robust inference with multiway clustering." *Journal of Business and Economic Statistics*, 29(2), 238-249.
-
-## Authors
-
-Ohyun Kwon, Mario Larch, Jangsu Yoon, Yoto V. Yotov
 
 Bug reports: [GitHub Issues](https://github.com/ekwonomist/ivppmlhdfe/issues)

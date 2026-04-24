@@ -78,11 +78,7 @@
 <!-- ============================================================ -->
 <h2>Quick Install</h2>
 
-<pre><code>net install ivppmlhdfe, from("C:/your_path/github_repo/") replace</code></pre>
-
-<div class="note">
-  Replace <code>C:/your_path/github_repo/</code> with the actual path to this folder on your machine.
-</div>
+<pre><code>net install ivppmlhdfe, from("https://raw.githubusercontent.com/ekwonomist/ivppmlhdfe/main/") replace</code></pre>
 
 <h2>Installation (detailed)</h2>
 
@@ -92,23 +88,26 @@ ssc install ppmlhdfe, replace
 ssc install ftools, replace</code></pre>
 
 <h3>Step 2: Install ivppmlhdfe</h3>
-<pre><code>* Point to the unzipped folder you received
-net install ivppmlhdfe, from("C:/your_path/ivppmlhdfe/") replace</code></pre>
+<pre><code>net install ivppmlhdfe, from("https://raw.githubusercontent.com/ekwonomist/ivppmlhdfe/main/") replace</code></pre>
+
+<div class="note">
+  <strong>Example data.</strong> The <code>data/</code> folder (example datasets and SPJ+bootstrap templates) is <em>not</em> bundled with <code>net install</code>. To use the examples, clone or download the repository manually from <a href="https://github.com/ekwonomist/ivppmlhdfe">GitHub</a>.
+</div>
 
 <h3>Step 3 (optional): Install Julia backend for ~7x speed</h3>
 <p>The Julia backend (<code>ivppmlhdfejl</code>) uses <a href="https://github.com/FixedEffects/FixedEffects.jl">FixedEffects.jl</a> for FE absorption. Requires <a href="https://julialang.org/downloads/">Julia 1.9+</a>.</p>
 <pre><code>* Install the Stata-Julia bridge (David Roodman)
 ssc install julia, replace
 
-* Install ivppmlhdfejl (copies bridge files + Julia module to your ado directory)
-do "C:/your_path/ivppmlhdfe/julia/install_ivppmlhdfejl.do"</code></pre>
+* From your cloned/downloaded ivppmlhdfe repo, run:
+do "julia/install_ivppmlhdfejl.do"</code></pre>
 
 <p>Usage is identical to <code>ivppmlhdfe</code> — just replace the command name:</p>
 <pre><code>* IV-PPML via Julia backend
-ivppmlhdfejl trade (policy = instrument), absorb(exp_year imp_year) vce(cluster pair_id)
+ivppmlhdfejl trade (policy = instrument), absorb(exp#year imp#year) vce(cluster pair)
 
 * Exogenous PPML via Julia backend
-ivppmlhdfejl trade x1 x2, absorb(exp_year imp_year) vce(cluster pair_id)</code></pre>
+ivppmlhdfejl trade x1 x2, absorb(exp#year imp#year) vce(cluster pair)</code></pre>
 
 <p>For pure Julia usage (Monte Carlo, bootstrap — ~7x faster than Stata), see the
 <code>julia/IVPPMLFixedEffectModels/</code> module and the <a href="README.md">README.md</a> for API details.</p>
@@ -559,18 +558,6 @@ di "8p-SPJ estimate: `b_spj'"
   <tr><td><code><a href="data/MC_SPJ_BTS_ClassB.do">MC_SPJ_BTS_ClassB.do</a></code></td><td>SPJ + bootstrap template for Class B</td></tr>
   <tr><td><code><a href="data/MC_SPJ_BTS_ClassC.do">MC_SPJ_BTS_ClassC.do</a></code></td><td>SPJ + bootstrap template for Class C</td></tr>
 </table>
-
-<!-- ============================================================ -->
-<h2>Known Limitations</h2>
-
-<ul>
-  <li><strong>Separation detection</strong>: All three separation detection methods (fe, simplex, relu) are supported, matching ppmlhdfe. The default applies all three in sequence.</li>
-  <li><strong>Convergence failures</strong>: rc=430 (non-convergence) and rc=9003 (runaway divergence) are now loud failures with clear error messages, matching Stata's native ivppmlhdfe.</li>
-  <li><strong>Collinearity detection</strong>: v0.9.4 automatically detects and drops collinear regressors/instruments (including factor-variable dummies fully absorbed by FE).</li>
-  <li><strong>Constant term</strong>: <code>_cons</code> is reported without a standard error (by design; use bootstrap for <code>_cons</code> inference).</li>
-  <li><strong>No first-stage diagnostics</strong>: no Cragg-Donald or Kleibergen-Paap statistics.</li>
-  <li><strong>Incidental parameter bias</strong>: IV-PPML has O(1/T) + O(1/N) point-estimate bias in short panels. We recommend split-panel jackknife (SPJ) + bootstrap for inference in gravity models.</li>
-</ul>
 
 <!-- ============================================================ -->
 <h2>References</h2>

@@ -1,13 +1,13 @@
 {smcl}
-{* *! version 0.9.4  14apr2026}{...}
+{* *! version 0.9.4  23apr2026}{...}
 {vieweralsosee "ppmlhdfe" "help ppmlhdfe"}{...}
 {vieweralsosee "reghdfe" "help reghdfe"}{...}
 {vieweralsosee "ivreghdfe" "help ivreghdfe"}{...}
 {viewerjumpto "Syntax" "ivppmlhdfe##syntax"}{...}
 {viewerjumpto "Description" "ivppmlhdfe##description"}{...}
 {viewerjumpto "Options" "ivppmlhdfe##options"}{...}
-{viewerjumpto "Predict" "ivppmlhdfe##predict"}{...}
 {viewerjumpto "Examples" "ivppmlhdfe##examples"}{...}
+{viewerjumpto "Predict" "ivppmlhdfe##predict"}{...}
 {viewerjumpto "Stored results" "ivppmlhdfe##results"}{...}
 {viewerjumpto "References" "ivppmlhdfe##references"}{...}
 {viewerjumpto "Author" "ivppmlhdfe##author"}{...}
@@ -203,6 +203,54 @@ results table.
 coefficients, interpretable as incidence-rate ratios.
 
 
+{marker examples}{...}
+{title:Examples}
+
+{pstd}The examples below use the three datasets shipped with the package in
+the {cmd:data/} folder of the GitHub repository: {cmd:ivppmlhdfe_ClassA.dta}
+(individual + time FE), {cmd:ivppmlhdfe_ClassB.dta} (two-way gravity FE), and
+{cmd:ivppmlhdfe_ClassC.dta} (three-way gravity FE). Each has dependent
+variable {cmd:y}, exogenous regressor {cmd:x2}, endogenous regressor {cmd:x1},
+and excluded instrument {cmd:z}.{p_end}
+
+{pstd}Class A: individual + time FE{p_end}
+{phang2}{cmd:. use "ivppmlhdfe_ClassA.dta", clear}{p_end}
+{phang2}{cmd:. ivppmlhdfe y x2 (x1 = z), absorb(id year) vce(robust)}{p_end}
+
+{pstd}Class B: two-way gravity FE (exporter-year, importer-year){p_end}
+{phang2}{cmd:. use "ivppmlhdfe_ClassB.dta", clear}{p_end}
+{phang2}{cmd:. ivppmlhdfe y x2 (x1 = z), absorb(exp#year imp#year) vce(cluster pair)}{p_end}
+
+{pstd}Class C: three-way gravity FE (pair, exporter-year, importer-year){p_end}
+{phang2}{cmd:. use "ivppmlhdfe_ClassC.dta", clear}{p_end}
+{phang2}{cmd:. ivppmlhdfe y x2 (x1 = z), absorb(exp#imp exp#year imp#year) vce(cluster pair)}{p_end}
+
+{pstd}Multi-way clustering (exporter and importer){p_end}
+{phang2}{cmd:. use "ivppmlhdfe_ClassB.dta", clear}{p_end}
+{phang2}{cmd:. ivppmlhdfe y x2 (x1 = z), absorb(exp#year imp#year) vce(cluster exp imp)}{p_end}
+
+{pstd}With {cmd:d()} for prediction{p_end}
+{phang2}{cmd:. ivppmlhdfe y x2 (x1 = z), absorb(exp#year imp#year) d(fe_sum)}{p_end}
+{phang2}{cmd:. predict muhat, mu}{p_end}
+{phang2}{cmd:. predict resid, residuals}{p_end}
+
+{pstd}Display incidence-rate ratios{p_end}
+{phang2}{cmd:. ivppmlhdfe y x2 (x1 = z), absorb(exp#year imp#year) vce(cluster pair) irr}{p_end}
+
+{pstd}Margins{p_end}
+{phang2}{cmd:. ivppmlhdfe y x2 (x1 = z), absorb(id year) d(fe_sum)}{p_end}
+{phang2}{cmd:. margins, dydx(x2)}{p_end}
+
+{pstd}Standardize regressors for numerical stability{p_end}
+{phang2}{cmd:. ivppmlhdfe y x2 (x1 = z), absorb(id year) standardize}{p_end}
+
+{pstd}Aggressive separation detection (FE + simplex + ReLU + mu){p_end}
+{phang2}{cmd:. ivppmlhdfe y x2 (x1 = z), absorb(id year) separation(all)}{p_end}
+
+{pstd}Tag separated observations without estimating{p_end}
+{phang2}{cmd:. ivppmlhdfe y x2 (x1 = z), absorb(id year) separation(all) tagsep(sep_obs)}{p_end}
+
+
 {marker predict}{...}
 {title:Predict}
 
@@ -229,43 +277,6 @@ After estimation, {cmd:predict} supports the following statistics:
 {pstd}
 All statistics except {cmd:xb} require the {cmd:d()} option during estimation.
 {cmd:margins} works automatically via the {cmd:scores} option.
-
-
-{marker examples}{...}
-{title:Examples}
-
-{pstd}Basic IV-PPML with time fixed effects{p_end}
-{phang2}{cmd:. ivppmlhdfe y x2 (x1 = z), absorb(year) vce(robust)}{p_end}
-
-{pstd}Two-way gravity model (exporter-year, importer-year FE){p_end}
-{phang2}{cmd:. ivppmlhdfe trade (policy = instrument), absorb(exp_year imp_year) vce(cluster pair_id)}{p_end}
-
-{pstd}Three-way gravity model with pair FE{p_end}
-{phang2}{cmd:. ivppmlhdfe trade (policy = instrument), absorb(exp_year imp_year pair_id) vce(cluster pair_id)}{p_end}
-
-{pstd}With exposure variable and d() for prediction{p_end}
-{phang2}{cmd:. ivppmlhdfe trade (policy = instrument), absorb(exp_year imp_year) exposure(pop) d(fe_sum)}{p_end}
-{phang2}{cmd:. predict muhat, mu}{p_end}
-{phang2}{cmd:. predict resid, residuals}{p_end}
-
-{pstd}Multi-way clustering{p_end}
-{phang2}{cmd:. ivppmlhdfe trade (policy = instrument), absorb(exp_year imp_year) vce(cluster exp imp)}{p_end}
-
-{pstd}Display incidence-rate ratios{p_end}
-{phang2}{cmd:. ivppmlhdfe trade (policy = instrument), absorb(exp_year imp_year) vce(cluster pair_id) irr}{p_end}
-
-{pstd}Margins{p_end}
-{phang2}{cmd:. ivppmlhdfe y x2 (x1 = z), absorb(id year) d(fe_sum)}{p_end}
-{phang2}{cmd:. margins, dydx(x2)}{p_end}
-
-{pstd}Standardize regressors for numerical stability{p_end}
-{phang2}{cmd:. ivppmlhdfe y x2 (x1 = z), absorb(id year) standardize}{p_end}
-
-{pstd}Aggressive separation detection (FE + simplex + ReLU + mu){p_end}
-{phang2}{cmd:. ivppmlhdfe y x2 (x1 = z), absorb(id year) separation(all)}{p_end}
-
-{pstd}Tag separated observations without estimating{p_end}
-{phang2}{cmd:. ivppmlhdfe y x2 (x1 = z), absorb(id year) separation(all) tagsep(sep_obs)}{p_end}
 
 
 {marker results}{...}
@@ -345,10 +356,6 @@ likelihood-ratio tests are not valid with endogenous regressors.
 tolerance within {cmd:maxiterations()} iterations.  Try increasing
 {cmd:maxiterations()}, or use {cmd:standardize} or {cmd:mu} separation
 options.{p_end}
-{synopt:{cmd:rc=9003}}Runaway divergence.  The IRLS iteration detected
-numerical instability (Inf/NaN in mu/eta, or max|b|>1e6 / max|eta|>30
-after iteration 10).  Try {cmd:standardize}, {cmd:separation(default)},
-or a simpler FE structure.{p_end}
 
 {pstd}
 {bf:Known limitation:} {cmd:_cons} is reported without a standard error.

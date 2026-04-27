@@ -194,7 +194,7 @@ Ready-to-run do-files with example data are included in the `data/` folder (clon
 | B | WZ 2021 (4-subpanel country split) | beta_SPJ = 2*b_full - mean(b_aa, b_ab, b_ba, b_bb) | [`MC_SPJ_BTS_ClassB.do`](data/MC_SPJ_BTS_ClassB.do) |
 | C | 8-panel (country × time split) | beta_8p = 4*b_full - 2*b_country - 2*b_time + b_8cell | [`MC_SPJ_BTS_ClassC.do`](data/MC_SPJ_BTS_ClassC.do) |
 
-Each script loads example data (`ivppmlhdfe_ClassX.dta`), computes the SPJ point estimate, and runs B=1000 bootstrap replications (matching the paper's MC design) to produce SE and 95% CI. See [`readme.html`](readme.html) for full annotated code with step-by-step explanations.
+Each script loads example data (`ivppmlhdfe_ClassX.dta`), computes the SPJ point estimate, and runs B=1000 bootstrap replications (matching the paper's MC design) to produce SE and 95% CI.
 
 To generate fresh example data, run [`data/DGP.do`](data/DGP.do).
 

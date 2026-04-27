@@ -1,5 +1,5 @@
 {smcl}
-{* *! version 0.9.4  23apr2026}{...}
+{* *! version 0.9.4  27apr2026}{...}
 {vieweralsosee "ppmlhdfe" "help ppmlhdfe"}{...}
 {vieweralsosee "reghdfe" "help reghdfe"}{...}
 {vieweralsosee "ivreghdfe" "help ivreghdfe"}{...}
@@ -371,6 +371,10 @@ likelihood-ratio tests are not valid with endogenous regressors.
 tolerance within {cmd:maxiterations()} iterations.  Try increasing
 {cmd:maxiterations()}, or use {cmd:standardize} or {cmd:mu} separation
 options.{p_end}
+{synopt:{cmd:rc=9003}}Runaway divergence.  The IRLS iteration detected
+numerical instability (Inf/NaN in mu/eta, or max|b|>1e6 / max|eta|>30
+after iteration 10).  Try {cmd:standardize}, {cmd:separation(default)},
+or a simpler FE structure.{p_end}
 
 {pstd}
 {bf:Known limitation:} {cmd:_cons} is reported without a standard error.
@@ -396,8 +400,9 @@ Fast Poisson estimation with high-dimensional fixed effects.
 {phang}
 Kwon, O., M. Larch, J. Yoon, and Y. V. Yotov. 2026.
 Instrumental-Variable Poisson PML with High-Dimensional Fixed Effects.
-Working paper. (For IPP bias orders, the SPJ + bootstrap remedy, and
-Monte Carlo evidence.)
+{it:Drexel University School of Economics Working Paper} 2026-11.
+{browse "https://ideas.repec.org/p/drx/wpaper/202611.html":ideas.repec.org/p/drx/wpaper/202611.html}.
+(For IPP bias orders, the SPJ + bootstrap remedy, and Monte Carlo evidence.)
 
 {phang}
 Weidner, M. and T. Zylkin. 2021.

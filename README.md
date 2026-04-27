@@ -10,7 +10,7 @@ Ohyun Kwon, Mario Larch, Jangsu Yoon, Yoto V. Yotov
 
 `ivppmlhdfe` estimates IV-PPML models with multiple sets of high-dimensional fixed effects. The estimator targets the additive moment condition E[q(y - μ)] = 0 with q = (x', z')' (exogenous regressors stacked with excluded instruments), together with the per-group fixed-effect score Σ_{g∈r}(y_g - μ_g) = 0, following [Windmeijer and Santos Silva (1997)](https://doi.org/10.1002/(SICI)1099-1255(199705)12:3%3C281::AID-JAE436%3E3.0.CO;2-1). It is solved via iteratively reweighted 2SLS [(Correia, Guimaraes, and Zylkin, 2020)](https://journals.sagepub.com/doi/10.1177/1536867X20909691) with fixed effects concentrated out at each iteration using [`reghdfe`](https://github.com/sergiocorreia/reghdfe).
 
-For incidental-parameter bias under IV-PPML and the split-panel jackknife (SPJ) + bootstrap remedy, see the companion paper Kwon, Larch, Yoon, and Yotov (2026).
+For incidental-parameter bias under IV-PPML and the split-panel jackknife (SPJ) + bootstrap remedy, see the companion paper [Kwon, Larch, Yoon, and Yotov (2026)](https://ideas.repec.org/p/drx/wpaper/202611.html).
 
 The command is designed to feel natural to users of [`ppmlhdfe`](https://github.com/sergiocorreia/ppmlhdfe). All standard post-estimation commands are supported. Both **just-identified** and **overidentified** models are supported, and multiple endogenous regressors are allowed.
 
@@ -184,7 +184,7 @@ ivppmlhdfejl y x2 x1, absorb(exp#year imp#year) vce(cluster pair)
 
 ## SPJ Bias Correction + Bootstrap SE
 
-IV-PPML with fixed effects suffers from incidental parameter bias that does not arise in standard PPML. The companion paper Kwon, Larch, Yoon, and Yotov (2026) derives the bias orders by FE structure and develops a split-panel jackknife (SPJ) bias correction paired with bootstrap standard errors. See the paper for the full derivations, the recommended bootstrap aggregator (median CI-implied SE), and the Monte Carlo evidence.
+IV-PPML with fixed effects suffers from incidental parameter bias that does not arise in standard PPML. The companion paper [Kwon, Larch, Yoon, and Yotov (2026)](https://ideas.repec.org/p/drx/wpaper/202611.html) derives the bias orders by FE structure and develops a split-panel jackknife (SPJ) bias correction paired with bootstrap standard errors. See the paper for the full derivations, the recommended bootstrap aggregator (median CI-implied SE), and the Monte Carlo evidence.
 
 Ready-to-run do-files with example data are included in the `data/` folder (clone the repo from GitHub to access them):
 
@@ -216,6 +216,7 @@ The `data/` folder (available when you clone the repository) contains:
 
 ## References
 
+- Kwon, O., M. Larch, J. Yoon, and Y. V. Yotov (2026). "Instrumental-Variable Poisson PML with High-Dimensional Fixed Effects." *Drexel University School of Economics Working Paper* 2026-11. [[ideas.repec.org]](https://ideas.repec.org/p/drx/wpaper/202611.html)
 - Windmeijer, F. A. G., and J. M. C. Santos Silva (1997). "Endogeneity in count data models: An application to demand for health care." *Journal of Applied Econometrics*, 12(3), 281–294.
 - Correia, S., P. Guimaraes, and T. Zylkin (2020). "Fast Poisson estimation with high-dimensional fixed effects." *Stata Journal*, 20(1), 95–115.
 - Weidner, M. and T. Zylkin (2021). "Bias and consistency in three-way gravity models." *Journal of International Economics*, 132, 103513.

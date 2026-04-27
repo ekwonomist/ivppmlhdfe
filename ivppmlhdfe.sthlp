@@ -388,14 +388,19 @@ and does not have an analytical SE.  Use bootstrap for inference on
 {title:References}
 
 {phang}
-Windmeijer, F. A. G., and J. M. C. Santos Silva. 1997.
-Endogeneity in count data models: An application to demand for health care.
-{it:Journal of Applied Econometrics} 12(3): 281-294.
+Cameron, A. C., J. B. Gelbach, and D. L. Miller. 2011.
+Robust inference with multiway clustering.
+{it:Journal of Business and Economic Statistics} 29(2): 238-249.
 
 {phang}
 Correia, S., P. Guimaraes, and T. Zylkin. 2020.
 Fast Poisson estimation with high-dimensional fixed effects.
 {it:Stata Journal} 20(1): 95-115.
+
+{phang}
+Fernandez-Val, I. and M. Weidner. 2016.
+Individual and time effects in nonlinear panel models with large N, T.
+{it:Journal of Econometrics} 192(1): 291-312.
 
 {phang}
 Kwon, O., M. Larch, J. Yoon, and Y. V. Yotov. 2026.
@@ -405,27 +410,22 @@ Instrumental-Variable Poisson PML with High-Dimensional Fixed Effects.
 (For IPP bias orders, the SPJ + bootstrap remedy, and Monte Carlo evidence.)
 
 {phang}
-Weidner, M. and T. Zylkin. 2021.
-Bias and consistency in three-way gravity models.
-{it:Journal of International Economics} 132: 103513.
-
-{phang}
-Fernandez-Val, I. and M. Weidner. 2016.
-Individual and time effects in nonlinear panel models with large N, T.
-{it:Journal of Econometrics} 192(1): 291-312.
-
-{phang}
-Cameron, A. C., J. B. Gelbach, and D. L. Miller. 2011.
-Robust inference with multiway clustering.
-{it:Journal of Business and Economic Statistics} 29(2): 238-249.
-
-{phang}
 Mullahy, J. 1997.
 Instrumental-variable estimation of count data models: Applications to
 models of cigarette smoking behavior.
 {it:Review of Economics and Statistics} 79(4): 586-593.
 (Related but distinct: a transformation estimator for multiplicative
 unobserved heterogeneity, not the additive moment used here.)
+
+{phang}
+Weidner, M. and T. Zylkin. 2021.
+Bias and consistency in three-way gravity models.
+{it:Journal of International Economics} 132: 103513.
+
+{phang}
+Windmeijer, F. A. G., and J. M. C. Santos Silva. 1997.
+Endogeneity in count data models: An application to demand for health care.
+{it:Journal of Applied Econometrics} 12(3): 281-294.
 
 
 {marker author}{...}

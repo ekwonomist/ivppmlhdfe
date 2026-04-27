@@ -216,12 +216,12 @@ The `data/` folder (available when you clone the repository) contains:
 
 ## References
 
-- Kwon, O., M. Larch, J. Yoon, and Y. V. Yotov (2026). "Instrumental-Variable Poisson PML with High-Dimensional Fixed Effects." *Drexel University School of Economics Working Paper* 2026-11. [[ideas.repec.org]](https://ideas.repec.org/p/drx/wpaper/202611.html)
-- Windmeijer, F. A. G., and J. M. C. Santos Silva (1997). "Endogeneity in count data models: An application to demand for health care." *Journal of Applied Econometrics*, 12(3), 281–294.
-- Correia, S., P. Guimaraes, and T. Zylkin (2020). "Fast Poisson estimation with high-dimensional fixed effects." *Stata Journal*, 20(1), 95–115.
-- Weidner, M. and T. Zylkin (2021). "Bias and consistency in three-way gravity models." *Journal of International Economics*, 132, 103513.
-- Fernandez-Val, I. and M. Weidner (2016). "Individual and time effects in nonlinear panel models with large N, T." *Journal of Econometrics*, 192(1), 291–312.
 - Cameron, A. C., J. B. Gelbach, and D. L. Miller (2011). "Robust inference with multiway clustering." *Journal of Business and Economic Statistics*, 29(2), 238–249.
+- Correia, S., P. Guimaraes, and T. Zylkin (2020). "Fast Poisson estimation with high-dimensional fixed effects." *Stata Journal*, 20(1), 95–115.
+- Fernandez-Val, I. and M. Weidner (2016). "Individual and time effects in nonlinear panel models with large N, T." *Journal of Econometrics*, 192(1), 291–312.
+- Kwon, O., M. Larch, J. Yoon, and Y. V. Yotov (2026). "Instrumental-Variable Poisson PML with High-Dimensional Fixed Effects." *Drexel University School of Economics Working Paper* 2026-11. [[ideas.repec.org]](https://ideas.repec.org/p/drx/wpaper/202611.html)
 - Mullahy, J. (1997). "Instrumental-variable estimation of count data models." *Review of Economics and Statistics*, 79(4), 586–593. *(Related but distinct: a transformation estimator for multiplicative unobserved heterogeneity, not the additive moment used here.)*
+- Weidner, M. and T. Zylkin (2021). "Bias and consistency in three-way gravity models." *Journal of International Economics*, 132, 103513.
+- Windmeijer, F. A. G., and J. M. C. Santos Silva (1997). "Endogeneity in count data models: An application to demand for health care." *Journal of Applied Econometrics*, 12(3), 281–294.
 
 Report issues to Ohyun Kwon (theekwonomist@gmail.com) or open a [GitHub issue](https://github.com/ekwonomist/ivppmlhdfe/issues).

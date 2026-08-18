@@ -1,8 +1,9 @@
 {smcl}
-{* *! version 0.9.4  27apr2026}{...}
+{* *! version 0.9.4  25jun2026}{...}
 {vieweralsosee "ppmlhdfe" "help ppmlhdfe"}{...}
 {vieweralsosee "reghdfe" "help reghdfe"}{...}
 {vieweralsosee "ivreghdfe" "help ivreghdfe"}{...}
+{viewerjumpto "Installation" "ivppmlhdfe##installation"}{...}
 {viewerjumpto "Syntax" "ivppmlhdfe##syntax"}{...}
 {viewerjumpto "Description" "ivppmlhdfe##description"}{...}
 {viewerjumpto "Options" "ivppmlhdfe##options"}{...}
@@ -16,6 +17,28 @@
 {p2colset 5 22 24 2}{...}
 {p2col:{cmd:ivppmlhdfe} {hline 2}}IV Poisson pseudo-maximum likelihood estimation with high-dimensional fixed effects{p_end}
 {p2colreset}{...}
+
+
+{marker installation}{...}
+{title:Installation}
+
+{pstd}
+{cmd:ivppmlhdfe} requires {cmd:reghdfe}, {cmd:ppmlhdfe}, and {cmd:ftools}.
+Install these dependencies from SSC (they are not installed automatically):{p_end}
+
+{phang2}{cmd:. ssc install ftools, replace}{p_end}
+{phang2}{cmd:. ssc install reghdfe, replace}{p_end}
+{phang2}{cmd:. ssc install ppmlhdfe, replace}{p_end}
+
+{pstd}
+The project's GitHub repository hosts the example datasets, ready-to-run
+replication and SPJ + bootstrap templates, the accompanying paper, and the
+optional Julia backend:
+{browse "https://github.com/ekwonomist/ivppmlhdfe":github.com/ekwonomist/ivppmlhdfe}.{p_end}
+
+{p 8 12 2}- {bf:Data and examples:} {browse "https://github.com/ekwonomist/ivppmlhdfe/tree/main/data":github.com/ekwonomist/ivppmlhdfe/tree/main/data}{p_end}
+{p 8 12 2}- {bf:Accompanying paper:} Kwon, Larch, Yoon, and Yotov (2026), linked from the repository and listed under {help ivppmlhdfe##references:References}{p_end}
+{p 8 12 2}- {bf:Julia extension (ivppmlhdfejl):} {browse "https://github.com/ekwonomist/ivppmlhdfe/tree/main/julia":github.com/ekwonomist/ivppmlhdfe/tree/main/julia}{p_end}
 
 
 {marker syntax}{...}
@@ -96,7 +119,7 @@ source-time + dest-time + pair), the split-panel jackknife (SPJ)
 formulas, the recommended bootstrap aggregator, and Monte Carlo evidence,
 see Kwon, Larch, Yoon, and Yotov (2026). Ready-to-run SPJ + bootstrap
 templates for each FE class are shipped under {bf:data/} on the GitHub
-repository.
+repository ({browse "https://github.com/ekwonomist/ivppmlhdfe/tree/main/data":github.com/ekwonomist/ivppmlhdfe/tree/main/data}).
 
 {pstd}
 v0.9.4 automatically detects and drops regressors and instruments that are
@@ -222,7 +245,8 @@ coefficients, interpretable as incidence-rate ratios.
 {title:Examples}
 
 {pstd}The examples below use the three datasets shipped with the package in
-the {cmd:data/} folder of the GitHub repository: {cmd:ivppmlhdfe_ClassA.dta}
+the {cmd:data/} folder of the GitHub repository
+({browse "https://github.com/ekwonomist/ivppmlhdfe/tree/main/data":github.com/ekwonomist/ivppmlhdfe/tree/main/data}): {cmd:ivppmlhdfe_ClassA.dta}
 (individual + time FE), {cmd:ivppmlhdfe_ClassB.dta} (two-way gravity FE), and
 {cmd:ivppmlhdfe_ClassC.dta} (three-way gravity FE). Each has dependent
 variable {cmd:y}, exogenous regressor {cmd:x2}, endogenous regressor {cmd:x1},
@@ -432,5 +456,7 @@ Endogeneity in count data models: An application to demand for health care.
 {title:Authors}
 
 {pstd}Ohyun Kwon, Mario Larch, Jangsu Yoon, Yoto V. Yotov{p_end}
+
+{pstd}Project page: {browse "https://github.com/ekwonomist/ivppmlhdfe":github.com/ekwonomist/ivppmlhdfe}{p_end}
 
 {pstd}Report issues to Ohyun Kwon at {browse "mailto:theekwonomist@gmail.com":theekwonomist@gmail.com} or open a {browse "https://github.com/ekwonomist/ivppmlhdfe/issues":GitHub issue}.{p_end}

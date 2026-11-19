@@ -1,0 +1,13 @@
+export(ivppmlhdfe)
+importFrom(stats, coef, vcov, nobs, deviance, logLik, fitted, predict, pnorm, qnorm, pchisq, pf,
+           model.frame, model.matrix, terms, as.formula, na.pass, complete.cases, printCoefmat)
+S3method(coef, ivppmlhdfe)
+S3method(vcov, ivppmlhdfe)
+S3method(nobs, ivppmlhdfe)
+S3method(deviance, ivppmlhdfe)
+S3method(logLik, ivppmlhdfe)
+S3method(fitted, ivppmlhdfe)
+S3method(predict, ivppmlhdfe)
+S3method(summary, ivppmlhdfe)
+S3method(print, ivppmlhdfe)
+S3method(print, summary.ivppmlhdfe)

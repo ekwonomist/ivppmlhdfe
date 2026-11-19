@@ -1,0 +1,65 @@
+{
+ "impl": "ppmlhdfe",
+ "version": "ppmlhdfe",
+ "accel": false,
+ "platform": "EKWONOMIST Stata 18.5 MP processors 4/4",
+ "created": "2026-11-19T13:42:05",
+ "options": "",
+ "cmd": "ppmlhdfe",
+ "cases": {
+  "A_ppml": {
+   "ok": true,
+   "error": null,
+   "coef": {
+    "x1": 0.7924923049436241,
+    "x2": 0.35682990791253216
+   },
+   "se": {
+    "x1": 0.03401406143429819,
+    "x2": 0.08736487250624309
+   },
+   "N": 1000,
+   "num_singletons": 0,
+   "num_separated": 0,
+   "iterations": 8,
+   "converged": true,
+   "deviance": 971.8674808151058,
+   "ll": -1350.5257094508354,
+   "time_s": 2.24,
+   "df_a": 109.0,
+   "N_clust": 8.98846567431158e+307,
+   "df": 889.0,
+   "rank": 2.0,
+   "po_share": 8.98846567431158e+307,
+   "inner_iter": 8.98846567431158e+307,
+   "ffirst": null
+  },
+  "C_ppml": {
+   "ok": true,
+   "error": null,
+   "coef": {
+    "x1": 0.812610637694005,
+    "x2": 0.25498070961994995
+   },
+   "se": {
+    "x1": 0.017892240664380655,
+    "x2": 0.044502266667400335
+   },
+   "N": 3800,
+   "num_singletons": 0,
+   "num_separated": 0,
+   "iterations": 8,
+   "converged": true,
+   "deviance": 3134.08665831626,
+   "ll": -4960.346448486062,
+   "time_s": 0.489,
+   "df_a": 389.0,
+   "N_clust": 380.0,
+   "df": 379.0,
+   "rank": 2.0,
+   "po_share": 8.98846567431158e+307,
+   "inner_iter": 8.98846567431158e+307,
+   "ffirst": null
+  }
+ }
+}

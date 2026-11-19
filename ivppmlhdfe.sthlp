@@ -1,5 +1,5 @@
 {smcl}
-{* *! version 0.9.4  25jun2026}{...}
+{* *! version 0.10.0  19nov2026}{...}
 {vieweralsosee "ppmlhdfe" "help ppmlhdfe"}{...}
 {vieweralsosee "reghdfe" "help reghdfe"}{...}
 {vieweralsosee "ivreghdfe" "help ivreghdfe"}{...}
@@ -7,6 +7,8 @@
 {viewerjumpto "Syntax" "ivppmlhdfe##syntax"}{...}
 {viewerjumpto "Description" "ivppmlhdfe##description"}{...}
 {viewerjumpto "Options" "ivppmlhdfe##options"}{...}
+{viewerjumpto "Fast path" "ivppmlhdfe##fastpath"}{...}
+{viewerjumpto "First-stage statistics" "ivppmlhdfe##ffirst"}{...}
 {viewerjumpto "Examples" "ivppmlhdfe##examples"}{...}
 {viewerjumpto "Predict" "ivppmlhdfe##predict"}{...}
 {viewerjumpto "Stored results" "ivppmlhdfe##results"}{...}
@@ -69,6 +71,9 @@ optional Julia backend:
 {synopt:{cmdab:tol:erance(}{it:#}{cmd:)}}outer convergence tolerance; default is {cmd:1e-8}{p_end}
 {synopt:{cmdab:itol:erance(}{it:#}{cmd:)}}inner FE-solver target tolerance; default is {cmd:max(1e-12, 0.1*tol)}{p_end}
 {synopt:{cmdab:maxit:erations(}{it:#}{cmd:)}}maximum IRLS iterations; default is {cmd:10000}{p_end}
+{synopt:{cmd:ffirst}}report first-stage statistics (F, partial R2, Sanderson-Windmeijer F, Kleibergen-Paap, Cragg-Donald), as {cmd:ivreg2}/{cmd:ivreghdfe}{p_end}
+{synopt:{cmd:noaccel}}turn the fast path off: the v0.9.4 algorithm, bit for bit{p_end}
+{synopt:{cmd:accel(}{it:w t s}{cmd:)}}diagnostic: use only the listed fast-path components{p_end}
 {synopt:{cmdab:keepsin:gletons}}keep singleton observations (default drops them){p_end}
 {synopt:{cmdab:tagsep(}{it:newvarname}{cmd:)}}separation-detection-only mode: tag separated obs and exit{p_end}
 {synopt:{cmdab:zvar:name(}{it:newvarname}{cmd:)}}save ReLU separation certificate variable{p_end}
@@ -81,7 +86,7 @@ optional Julia backend:
 {p 4 6 2}* {cmd:absorb()} is required (or specify {cmd:noabsorb} for no fixed effects).{p_end}
 {p 4 6 2}{cmd:pweight}s and {cmd:fweight}s are allowed.{p_end}
 {p 4 6 2}Both {bf:just-identified} and {bf:overidentified} models are supported. Multiple endogenous regressors are allowed.{p_end}
-{p 4 6 2}Unrecognised options (e.g. {cmd:dof()}, {cmd:pool()}, {cmd:accel()}) are forwarded to {cmd:reghdfe} via the {cmd:absorb()} string.{p_end}
+{p 4 6 2}Unrecognised options (e.g. {cmd:dof()}, {cmd:pool()}) are forwarded to {cmd:reghdfe} via the {cmd:absorb()} string. {cmd:accel()} with any value other than the letters {cmd:w}, {cmd:t}, {cmd:s} (e.g. {cmd:accel(cg)}) is {cmd:reghdfe}'s acceleration option and is forwarded too.{p_end}
 
 
 {marker description}{...}
@@ -122,7 +127,7 @@ templates for each FE class are shipped under {bf:data/} on the GitHub
 repository ({browse "https://github.com/ekwonomist/ivppmlhdfe/tree/main/data":github.com/ekwonomist/ivppmlhdfe/tree/main/data}).
 
 {pstd}
-v0.9.4 automatically detects and drops regressors and instruments that are
+{cmd:ivppmlhdfe} automatically detects and drops regressors and instruments that are
 collinear with each other or fully absorbed by the fixed effects.  Dropped
 variables appear as omitted in the coefficient table.
 
@@ -145,8 +150,8 @@ This option is required.
 
 {phang}
 {cmd:vce(robust)} (the default) computes the Eicker-Huber-White
-heteroskedasticity-robust sandwich variance estimator with N/(N-K)
-small-sample correction.
+heteroskedasticity-robust sandwich variance estimator with the N/(N-1)
+small-sample correction (as {cmd:ppmlhdfe}).
 {cmd:vce(cluster} {it:c1} [{it:c2} [{it:c3}]]{cmd:)} computes the
 cluster-robust variance estimator.  Multi-way clustering uses the
 Cameron-Gelbach-Miller (2011) inclusion-exclusion formula with G/(G-1)
@@ -212,6 +217,24 @@ Tighten this if you suspect under-converged demeaning at the inner step.
 iterations.  Default is {cmd:10000}.
 
 {phang}
+{cmd:ffirst} reports first-stage statistics for the linearized IV problem at
+the converged IRLS weights; see
+{help ivppmlhdfe##ffirst:First-stage statistics}.
+
+{phang}
+{cmd:noaccel} turns the fast path off and runs the v0.9.4 algorithm, which
+it reproduces bit for bit; see {help ivppmlhdfe##fastpath:Fast path}.
+
+{phang}
+{cmd:accel(}{it:list}{cmd:)} is a diagnostic option that runs only the
+listed components of the fast path: {cmd:w} (warm start), {cmd:t} (fereg's
+inner-tolerance schedule), {cmd:s} (exact elimination of the largest fixed
+effect plus preconditioned conjugate gradients). For example,
+{cmd:accel(w)} uses the warm start alone. Any other value of {cmd:accel()},
+such as {cmd:accel(cg)}, is {cmd:reghdfe}'s acceleration option and is passed
+to {cmd:reghdfe} as in v0.9.4.
+
+{phang}
 {cmd:keepsingletons} prevents singleton observations from being dropped
 by {cmd:reghdfe}. Use with caution; cluster-robust standard errors are
 not generally valid in the presence of singletons.
@@ -239,6 +262,64 @@ results table.
 {phang}
 {cmd:eform} (or equivalently {cmd:irr}) displays exponentiated
 coefficients, interpretable as incidence-rate ratios.
+
+
+{marker fastpath}{...}
+{title:Fast path}
+
+{pstd}
+Since v0.10.0 the fixed effects are concentrated out with three ideas taken
+from {cmd:fereg} ({help ivppmlhdfe##references:Schmieder 2026}). They change
+how the inner fixed-effect problem is solved, not the estimator: the
+starting values, the outer convergence test, the variance formulas and every
+other convention stay as in v0.9.4.
+
+{phang2}{bf:w} (warm start): at each IRLS iteration the previous iteration's
+partialled-out columns are partialled out again under the new weights,
+instead of the raw columns. This is exact, because subtracting a combination
+of fixed effects does not change the projection.{p_end}
+{phang2}{bf:t} (tolerance schedule): fereg's inner-tolerance schedule, which
+tightens the tolerance of the fixed-effect solver in stages as the IRLS
+iterations converge. The outer convergence test is unchanged.{p_end}
+{phang2}{bf:s} (exact elimination): the fixed effect with the most levels is
+solved exactly and the remaining system is solved by Jacobi-preconditioned
+conjugate gradients, all columns at once. It applies when there are two or
+more fixed effects without slopes; otherwise {cmd:reghdfe}'s solver is used.{p_end}
+
+{pstd}
+With the fast path on, the variance matrix and the first-stage statistics are
+computed from columns partialled out once more at the converged weights
+(v0.9.4 used the columns of the last iteration, which were partialled out
+under the previous iterate's weights). On the package's test cases,
+coefficients agree with {cmd:noaccel} to 3e-11 or better and standard errors
+and first-stage statistics to 1e-8 or better; {cmd:e(accel)} records the
+components that were used. On large three-way gravity panels the fast path
+is about 1.5 to 2.8 times faster than v0.9.4 on one core.
+
+{pstd}
+{cmd:noaccel} reproduces v0.9.4 bit for bit.
+
+
+{marker ffirst}{...}
+{title:First-stage statistics}
+
+{pstd}
+With {cmd:ffirst}, {cmd:ivppmlhdfe} reports the first-stage statistics of
+the linear IV problem solved at the last IRLS step: the fixed effects are
+partialled out under the final weights w*mu (w = user weight), and the
+statistics are those {cmd:ivreghdfe} reports for
+{cmd:ivreghdfe} {it:z} {it:exogvars} {cmd:(}{it:endogvars} {cmd:=} {it:instruments}{cmd:)}
+{cmd:[aw=}w*mu{cmd:],} {cmd:absorb(}{it:absvars}{cmd:)} {it:vce} {cmd:ffirst},
+with {it:z} the working dependent variable (which does not enter any
+first-stage statistic). For each endogenous regressor: the F test of the
+excluded instruments (with the same robust or cluster variance as the main
+model), the partial R-squared of the excluded instruments, and the
+Sanderson-Windmeijer (2016) conditional F. For the system: the
+Kleibergen-Paap (2006) rk LM test of underidentification, the Cragg-Donald
+Wald F and the Kleibergen-Paap rk Wald F statistics of weak identification.
+As in {cmd:ivreghdfe}, the F statistics subtract the degrees of freedom
+absorbed by the fixed effects, {cmd:e(df_a)} (or 1 when it is 0), as
+{cmd:e(sdofminus)}. Stock-Yogo critical values are not reported.
 
 
 {marker examples}{...}
@@ -272,6 +353,13 @@ and excluded instrument {cmd:z}.{p_end}
 {phang2}{cmd:. ivppmlhdfe y x2 (x1 = z), absorb(exp#year imp#year) d(fe_sum)}{p_end}
 {phang2}{cmd:. predict muhat, mu}{p_end}
 {phang2}{cmd:. predict resid, residuals}{p_end}
+
+{pstd}First-stage statistics{p_end}
+{phang2}{cmd:. ivppmlhdfe y x2 (x1 = z), absorb(exp#imp exp#year imp#year) vce(cluster pair) ffirst}{p_end}
+
+{pstd}The v0.9.4 algorithm, and the warm start alone{p_end}
+{phang2}{cmd:. ivppmlhdfe y x2 (x1 = z), absorb(exp#year imp#year) vce(cluster pair) noaccel}{p_end}
+{phang2}{cmd:. ivppmlhdfe y x2 (x1 = z), absorb(exp#year imp#year) vce(cluster pair) accel(w)}{p_end}
 
 {pstd}Display incidence-rate ratios{p_end}
 {phang2}{cmd:. ivppmlhdfe y x2 (x1 = z), absorb(exp#year imp#year) vce(cluster pair) irr}{p_end}
@@ -346,6 +434,13 @@ All statistics except {cmd:xb} require the {cmd:d()} option during estimation.
 {synopt:{cmd:e(N_clust)}}minimum number of clusters{p_end}
 {synopt:{cmd:e(N_clust1)}}number of clusters (1st variable){p_end}
 {synopt:{cmd:e(N_clust2)}}number of clusters (2nd variable){p_end}
+{synopt:{cmd:e(df_a)}}degrees of freedom absorbed by the fixed effects{p_end}
+{synopt:{cmd:e(idstat)}}Kleibergen-Paap rk LM statistic ({cmd:ffirst}){p_end}
+{synopt:{cmd:e(iddf)}}its degrees of freedom ({cmd:ffirst}){p_end}
+{synopt:{cmd:e(idp)}}its p-value ({cmd:ffirst}){p_end}
+{synopt:{cmd:e(cdf)}}Cragg-Donald Wald F statistic ({cmd:ffirst}){p_end}
+{synopt:{cmd:e(widstat)}}Kleibergen-Paap rk Wald F statistic ({cmd:ffirst}){p_end}
+{synopt:{cmd:e(sdofminus)}}absorbed degrees of freedom used by the first-stage F statistics ({cmd:ffirst}){p_end}
 
 {synoptset 28 tabbed}{...}
 {p2col 5 28 32 2: Macros}{p_end}
@@ -366,11 +461,14 @@ All statistics except {cmd:xb} require the {cmd:d()} option during estimation.
 {synopt:{cmd:e(separation)}}separation detection method{p_end}
 {synopt:{cmd:e(offset)}}offset variable name{p_end}
 {synopt:{cmd:e(d)}}d() variable name{p_end}
+{synopt:{cmd:e(accel)}}fast-path components used ({cmd:w t s}, or {cmd:none} with {cmd:noaccel}){p_end}
+{synopt:{cmd:e(version)}}version of {cmd:ivppmlhdfe}{p_end}
 
 {synoptset 28 tabbed}{...}
 {p2col 5 28 32 2: Matrices}{p_end}
 {synopt:{cmd:e(b)}}coefficient vector (slopes + _cons){p_end}
 {synopt:{cmd:e(V)}}variance-covariance matrix{p_end}
+{synopt:{cmd:e(first)}}first-stage statistics, one row per endogenous regressor, columns {cmd:F df1 df2 p partialR2 SWF SWdf1 SWdf2 SWp} ({cmd:ffirst}){p_end}
 
 {synoptset 28 tabbed}{...}
 {p2col 5 28 32 2: Functions}{p_end}
@@ -417,6 +515,11 @@ Robust inference with multiway clustering.
 {it:Journal of Business and Economic Statistics} 29(2): 238-249.
 
 {phang}
+Cragg, J. G., and S. G. Donald. 1993.
+Testing identifiability and specification in instrumental variable models.
+{it:Econometric Theory} 9(2): 222-240.
+
+{phang}
 Correia, S., P. Guimaraes, and T. Zylkin. 2020.
 Fast Poisson estimation with high-dimensional fixed effects.
 {it:Stata Journal} 20(1): 95-115.
@@ -425,6 +528,11 @@ Fast Poisson estimation with high-dimensional fixed effects.
 Fernandez-Val, I. and M. Weidner. 2016.
 Individual and time effects in nonlinear panel models with large N, T.
 {it:Journal of Econometrics} 192(1): 291-312.
+
+{phang}
+Kleibergen, F., and R. Paap. 2006.
+Generalized reduced rank tests using the singular value decomposition.
+{it:Journal of Econometrics} 133(1): 97-126.
 
 {phang}
 Kwon, O., M. Larch, J. Yoon, and Y. V. Yotov. 2026.
@@ -442,6 +550,18 @@ models of cigarette smoking behavior.
 unobserved heterogeneity, not the additive moment used here.)
 
 {phang}
+Sanderson, E., and F. Windmeijer. 2016.
+A weak instrument F-test in linear IV models with multiple endogenous variables.
+{it:Journal of Econometrics} 190(2): 212-221.
+
+{phang}
+Schmieder, J. F. 2026.
+fereg: Fast high-dimensional fixed-effects regressions in Stata.
+{it:NBER Working Paper} 36017.
+(Source of the warm start, the inner-tolerance schedule and the exact
+elimination with preconditioned conjugate gradients used by the fast path.)
+
+{phang}
 Weidner, M. and T. Zylkin. 2021.
 Bias and consistency in three-way gravity models.
 {it:Journal of International Economics} 132: 103513.
@@ -450,6 +570,16 @@ Bias and consistency in three-way gravity models.
 Windmeijer, F. A. G., and J. M. C. Santos Silva. 1997.
 Endogeneity in count data models: An application to demand for health care.
 {it:Journal of Applied Econometrics} 12(3): 281-294.
+
+
+{marker history}{...}
+{title:Version history}
+
+{phang2}{bf:0.10.0} (19nov2026): fast path from fereg (warm start, inner-tolerance schedule,
+exact elimination + preconditioned conjugate gradients) with {cmd:noaccel} and
+{cmd:accel()}; variance refreshed at the converged weights on the fast path;
+new option {cmd:ffirst}.{p_end}
+{phang2}{bf:0.9.4} (23apr2026): the algorithm kept as {cmd:noaccel}.{p_end}
 
 
 {marker author}{...}

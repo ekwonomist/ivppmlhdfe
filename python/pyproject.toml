@@ -1,0 +1,44 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ivppmlhdfe"
+version = "0.10.0"
+description = "IV-PPML (instrumental-variables Poisson pseudo-maximum likelihood) with high-dimensional fixed effects"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.10"
+authors = [
+    { name = "Ohyun Kwon" },
+    { name = "Mario Larch" },
+    { name = "Jangsu Yoon" },
+    { name = "Yoto V. Yotov" },
+]
+maintainers = [
+    { name = "Ohyun Kwon", email = "theekwonomist@gmail.com" },
+]
+keywords = ["PPML", "IV", "gravity", "fixed effects", "econometrics", "Poisson"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering :: Mathematics",
+    "Intended Audience :: Science/Research",
+]
+dependencies = [
+    "numpy>=1.23",
+    "scipy>=1.9",
+    "pandas>=1.5",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=7"]
+
+[project.urls]
+Homepage = "https://github.com/ekwonomist/ivppmlhdfe"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

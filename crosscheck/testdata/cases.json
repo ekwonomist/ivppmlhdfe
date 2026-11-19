@@ -1,0 +1,572 @@
+{
+  "version": "0.10.0",
+  "cases": [
+    {
+      "id": "A_rob",
+      "data": "classA.csv",
+      "depvar": "y",
+      "exog": [
+        "x2"
+      ],
+      "endog": [
+        "x1"
+      ],
+      "instruments": [
+        "z"
+      ],
+      "absorb": [
+        [
+          "id"
+        ],
+        [
+          "year"
+        ]
+      ],
+      "vce": {
+        "type": "robust"
+      },
+      "weights": null,
+      "weight_type": null,
+      "offset": null,
+      "note": ""
+    },
+    {
+      "id": "A_cl",
+      "data": "classA.csv",
+      "depvar": "y",
+      "exog": [
+        "x2"
+      ],
+      "endog": [
+        "x1"
+      ],
+      "instruments": [
+        "z"
+      ],
+      "absorb": [
+        [
+          "id"
+        ],
+        [
+          "year"
+        ]
+      ],
+      "vce": {
+        "type": "cluster",
+        "vars": [
+          "id"
+        ]
+      },
+      "weights": null,
+      "weight_type": null,
+      "offset": null,
+      "note": ""
+    },
+    {
+      "id": "B_rob",
+      "data": "classB.csv",
+      "depvar": "y",
+      "exog": [
+        "x2"
+      ],
+      "endog": [
+        "x1"
+      ],
+      "instruments": [
+        "z"
+      ],
+      "absorb": [
+        [
+          "exp",
+          "year"
+        ],
+        [
+          "imp",
+          "year"
+        ]
+      ],
+      "vce": {
+        "type": "robust"
+      },
+      "weights": null,
+      "weight_type": null,
+      "offset": null,
+      "note": ""
+    },
+    {
+      "id": "B_cl",
+      "data": "classB.csv",
+      "depvar": "y",
+      "exog": [
+        "x2"
+      ],
+      "endog": [
+        "x1"
+      ],
+      "instruments": [
+        "z"
+      ],
+      "absorb": [
+        [
+          "exp",
+          "year"
+        ],
+        [
+          "imp",
+          "year"
+        ]
+      ],
+      "vce": {
+        "type": "cluster",
+        "vars": [
+          "pair"
+        ]
+      },
+      "weights": null,
+      "weight_type": null,
+      "offset": null,
+      "note": ""
+    },
+    {
+      "id": "C_rob",
+      "data": "classC.csv",
+      "depvar": "y",
+      "exog": [
+        "x2"
+      ],
+      "endog": [
+        "x1"
+      ],
+      "instruments": [
+        "z"
+      ],
+      "absorb": [
+        [
+          "exp",
+          "imp"
+        ],
+        [
+          "exp",
+          "year"
+        ],
+        [
+          "imp",
+          "year"
+        ]
+      ],
+      "vce": {
+        "type": "robust"
+      },
+      "weights": null,
+      "weight_type": null,
+      "offset": null,
+      "note": ""
+    },
+    {
+      "id": "C_cl",
+      "data": "classC.csv",
+      "depvar": "y",
+      "exog": [
+        "x2"
+      ],
+      "endog": [
+        "x1"
+      ],
+      "instruments": [
+        "z"
+      ],
+      "absorb": [
+        [
+          "exp",
+          "imp"
+        ],
+        [
+          "exp",
+          "year"
+        ],
+        [
+          "imp",
+          "year"
+        ]
+      ],
+      "vce": {
+        "type": "cluster",
+        "vars": [
+          "pair"
+        ]
+      },
+      "weights": null,
+      "weight_type": null,
+      "offset": null,
+      "note": ""
+    },
+    {
+      "id": "C_cl2",
+      "data": "classC.csv",
+      "depvar": "y",
+      "exog": [
+        "x2"
+      ],
+      "endog": [
+        "x1"
+      ],
+      "instruments": [
+        "z"
+      ],
+      "absorb": [
+        [
+          "exp",
+          "imp"
+        ],
+        [
+          "exp",
+          "year"
+        ],
+        [
+          "imp",
+          "year"
+        ]
+      ],
+      "vce": {
+        "type": "cluster",
+        "vars": [
+          "exp",
+          "imp"
+        ]
+      },
+      "weights": null,
+      "weight_type": null,
+      "offset": null,
+      "note": "two-way clustering"
+    },
+    {
+      "id": "A_overid",
+      "data": "classA.csv",
+      "depvar": "y",
+      "exog": [
+        "x2"
+      ],
+      "endog": [
+        "x1"
+      ],
+      "instruments": [
+        "z",
+        "z2"
+      ],
+      "absorb": [
+        [
+          "id"
+        ],
+        [
+          "year"
+        ]
+      ],
+      "vce": {
+        "type": "robust"
+      },
+      "weights": null,
+      "weight_type": null,
+      "offset": null,
+      "note": "overidentified"
+    },
+    {
+      "id": "C_overid",
+      "data": "classC.csv",
+      "depvar": "y",
+      "exog": [
+        "x2"
+      ],
+      "endog": [
+        "x1"
+      ],
+      "instruments": [
+        "z",
+        "z2"
+      ],
+      "absorb": [
+        [
+          "exp",
+          "imp"
+        ],
+        [
+          "exp",
+          "year"
+        ],
+        [
+          "imp",
+          "year"
+        ]
+      ],
+      "vce": {
+        "type": "cluster",
+        "vars": [
+          "pair"
+        ]
+      },
+      "weights": null,
+      "weight_type": null,
+      "offset": null,
+      "note": "overidentified"
+    },
+    {
+      "id": "C_k2",
+      "data": "classC.csv",
+      "depvar": "y",
+      "exog": [
+        "x2"
+      ],
+      "endog": [
+        "x1",
+        "x3"
+      ],
+      "instruments": [
+        "z",
+        "z2",
+        "z3"
+      ],
+      "absorb": [
+        [
+          "exp",
+          "imp"
+        ],
+        [
+          "exp",
+          "year"
+        ],
+        [
+          "imp",
+          "year"
+        ]
+      ],
+      "vce": {
+        "type": "cluster",
+        "vars": [
+          "pair"
+        ]
+      },
+      "weights": null,
+      "weight_type": null,
+      "offset": null,
+      "note": "two endogenous regressors, overidentified"
+    },
+    {
+      "id": "B_pw",
+      "data": "classB.csv",
+      "depvar": "y",
+      "exog": [
+        "x2"
+      ],
+      "endog": [
+        "x1"
+      ],
+      "instruments": [
+        "z"
+      ],
+      "absorb": [
+        [
+          "exp",
+          "year"
+        ],
+        [
+          "imp",
+          "year"
+        ]
+      ],
+      "vce": {
+        "type": "cluster",
+        "vars": [
+          "pair"
+        ]
+      },
+      "weights": "w",
+      "weight_type": "pweight",
+      "offset": null,
+      "note": ""
+    },
+    {
+      "id": "A_fw",
+      "data": "classA.csv",
+      "depvar": "y",
+      "exog": [
+        "x2"
+      ],
+      "endog": [
+        "x1"
+      ],
+      "instruments": [
+        "z"
+      ],
+      "absorb": [
+        [
+          "id"
+        ],
+        [
+          "year"
+        ]
+      ],
+      "vce": {
+        "type": "robust"
+      },
+      "weights": "fw",
+      "weight_type": "fweight",
+      "offset": null,
+      "note": ""
+    },
+    {
+      "id": "C_off",
+      "data": "classC.csv",
+      "depvar": "y",
+      "exog": [
+        "x2"
+      ],
+      "endog": [
+        "x1"
+      ],
+      "instruments": [
+        "z"
+      ],
+      "absorb": [
+        [
+          "exp",
+          "imp"
+        ],
+        [
+          "exp",
+          "year"
+        ],
+        [
+          "imp",
+          "year"
+        ]
+      ],
+      "vce": {
+        "type": "robust"
+      },
+      "weights": null,
+      "weight_type": null,
+      "offset": "off",
+      "note": ""
+    },
+    {
+      "id": "A_ppml",
+      "data": "classA.csv",
+      "depvar": "y",
+      "exog": [
+        "x1",
+        "x2"
+      ],
+      "endog": [],
+      "instruments": [],
+      "absorb": [
+        [
+          "id"
+        ],
+        [
+          "year"
+        ]
+      ],
+      "vce": {
+        "type": "robust"
+      },
+      "weights": null,
+      "weight_type": null,
+      "offset": null,
+      "note": "no instruments: must match ppmlhdfe"
+    },
+    {
+      "id": "C_ppml",
+      "data": "classC.csv",
+      "depvar": "y",
+      "exog": [
+        "x1",
+        "x2"
+      ],
+      "endog": [],
+      "instruments": [],
+      "absorb": [
+        [
+          "exp",
+          "imp"
+        ],
+        [
+          "exp",
+          "year"
+        ],
+        [
+          "imp",
+          "year"
+        ]
+      ],
+      "vce": {
+        "type": "cluster",
+        "vars": [
+          "pair"
+        ]
+      },
+      "weights": null,
+      "weight_type": null,
+      "offset": null,
+      "note": "no instruments: must match ppmlhdfe"
+    },
+    {
+      "id": "B_sep",
+      "data": "classB.csv",
+      "depvar": "y0",
+      "exog": [
+        "x2"
+      ],
+      "endog": [
+        "x1"
+      ],
+      "instruments": [
+        "z"
+      ],
+      "absorb": [
+        [
+          "exp",
+          "year"
+        ],
+        [
+          "imp",
+          "year"
+        ]
+      ],
+      "vce": {
+        "type": "robust"
+      },
+      "weights": null,
+      "weight_type": null,
+      "offset": null,
+      "note": "25% zeros; exporter 3 in year 5 is all zero, so separated by the fe method"
+    },
+    {
+      "id": "A_single",
+      "data": "classA_single.csv",
+      "depvar": "y",
+      "exog": [
+        "x2"
+      ],
+      "endog": [
+        "x1"
+      ],
+      "instruments": [
+        "z"
+      ],
+      "absorb": [
+        [
+          "id"
+        ],
+        [
+          "year"
+        ]
+      ],
+      "vce": {
+        "type": "robust"
+      },
+      "weights": null,
+      "weight_type": null,
+      "offset": null,
+      "note": "5 singleton observations to drop"
+    }
+  ]
+}

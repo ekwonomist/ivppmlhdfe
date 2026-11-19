@@ -12,7 +12,7 @@ d Requires: reghdfe, ppmlhdfe, ftools
 d
 d Authors: Ohyun Kwon, Mario Larch, Jangsu Yoon, Yoto V. Yotov
 d Contact: Ohyun Kwon, theekwonomist@gmail.com
-d Distribution-Date: 20260423
+d Distribution-Date: 20261119
 f ivppmlhdfe.ado
 f ivppmlhdfe_p.ado
 f ivppmlhdfe.sthlp

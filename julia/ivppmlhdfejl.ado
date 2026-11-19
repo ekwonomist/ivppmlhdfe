@@ -1,4 +1,4 @@
-*! ivppmlhdfejl 0.9.4  23apr2026
+*! ivppmlhdfejl 0.10.0  19nov2026
 *! (IV-)PPML with High-Dimensional Fixed Effects — Julia backend
 *! Architecture: Path 3 — single Julia call with solver reuse (update_weights!)
 *! Mirrors reghdfejl / GLFixedEffectModels.jl pattern
@@ -20,6 +20,23 @@
 *! Options: vce(cluster c1 [c2]) tolerance(#) itolerance(#) maxiterations(#) verbose(#)
 *!          exposure(varname) offset(varname) d(name) separation(string)
 *!          standardize guess(simple|mean)
+*!          noaccel ffirst                                          (v0.10.0)
+*!
+*! v0.10.0 (19nov2026):
+*!   - The Julia package's fast path (accel: warm start + fereg tolerance schedule +
+*!     exact elimination of the largest FE with Jacobi-PCG + VCE refresh at the
+*!     converged weights) is ON by default; noaccel passes accel=false = the v0.9.4
+*!     Julia path, bit for bit.
+*!   - ffirst: first-stage statistics (ivreg2 / ivreghdfe conventions): e(first)
+*!     (rows = endogenous regressors; columns F df1 df2 p partialR2 SWF SWdf1 SWdf2
+*!     SWp), e(idstat) e(iddf) e(idp) (Kleibergen-Paap rk LM), e(cdf) (Cragg-Donald
+*!     Wald F), e(widstat) (Kleibergen-Paap rk Wald F), e(sdofminus).
+*!   - [fw=] is now passed as frequency weights (weight_type=:fweight): e(N) = sum of
+*!     the weights, as the native command; v0.9.4 treated fweights as pweights.
+*!   - FE separation is checked on each absorbed FE as written (exp#year as one FE,
+*!     not exp and year separately), iterated together with the singleton drop, and
+*!     counted in e(num_singletons) as the native command does ("either singletons or
+*!     separated by a fixed effect").
 
 // Mata helper used by Patch B below: when Julia's v0.9.4 two-stage
 // collinearity pipeline drops some columns, this pads b / V back to the
@@ -174,6 +191,11 @@ program Replay
 			di as txt "Endogenous: " as res "`e(endogvars)'"
 			di as txt "Instruments:" as res " `e(instruments)'"
 		}
+		tempname _ffchk
+		capture matrix `_ffchk' = e(first)
+		if !_rc {
+			_ivppmlhdfejl_ffdisp
+		}
 	}
 end
 
@@ -295,7 +317,8 @@ program _ivppmlhdfejl, eclass
 		 EXPosure(varname) OFFset(varname) ///
 		 D(name) SEParation(string) ///
 		 STANDardize GUESS(string) ///
-		 gpu THReads(integer 0) KEEPSINgletons compact]
+		 gpu THReads(integer 0) KEEPSINgletons compact ///
+		 noACCel FFirst]
 
 	// absorb / noabsorb (mutually exclusive; one is required)
 	if "`absorb'" == "" & "`noabsorb'" == "" {
@@ -571,45 +594,18 @@ program _ivppmlhdfejl, eclass
 		exit 2001
 	}
 
-	// ---------- 4.  Separation detection (Stata-side, FE method) ----------
-	local n_separated = 0
-	if `do_separation' {
-		local sep_changed = 1
-		while `sep_changed' {
-			local sep_changed = 0
-			local absorb_clean : subinstr local absorb "#" " ", all
-			foreach tok of local absorb_clean {
-				local v = regexr("`tok'", "^[ic]*\.", "")
-				capture confirm numeric variable `v'
-				if _rc continue
-				tempvar grpsum
-				quietly egen double `grpsum' = total(`depvar') if `touse', by(`v')
-				quietly count if `grpsum' == 0 & `touse'
-				if r(N) > 0 {
-					quietly replace `touse' = 0 if `grpsum' == 0 & `touse'
-					local n_separated = `n_separated' + r(N)
-					local sep_changed = 1
-				}
-				drop `grpsum'
-			}
-		}
-	}
-
-	quietly count if `touse'
-	local N_after_sep = r(N)
-	if `N_after_sep' == 0 {
-		di as err "no observations remaining after separation detection"
-		exit 2000
-	}
-
-	// ---------- 4b.  Singleton drop (default; suppressed by keepsingletons) ----------
-	// Iteratively drops obs that are alone in any FE group, matching the
-	// reghdfe / native ivppmlhdfe convention. Without this, the bridge's
-	// e(N), e(df), and _cons drift away from the native command.
-	// Build the cleaned varlist for each absorb token (JOINT interaction
-	// spec) so singletons are counted on the interaction (exp#year) not on
-	// individual vars. We build the raw var-lists ONCE, then rebuild the
+	// ---------- 4.  Singletons and FE separation (Stata-side) ----------
+	// v0.10.0: both drops work on each absorbed FE as written (the JOINT
+	// interaction exp#year, not exp and year separately: v0.9.4 checked
+	// separation on the component variables and missed all-zero exp#year
+	// cells), and they are iterated together until nothing changes, as
+	// reghdfe does in the native command (iweight trick). Both are counted in
+	// e(num_singletons), the native convention ("either singletons or
+	// separated by a fixed effect"); e(num_separated) stays for the other
+	// separation methods (none in the bridge).
+	// Build the cleaned varlist for each absorb token ONCE, then rebuild the
 	// group ids INSIDE the cascade loop so counts are fresh on each pass.
+	local n_separated = 0
 	local _sing_spec_list ""
 	local _sing_spec_count 0
 	foreach avar of local absorb {
@@ -632,16 +628,30 @@ program _ivppmlhdfejl, eclass
 	}
 
 	local n_singletons = 0
-	if "`keepsingletons'" == "" {
-		local sing_changed = 1
-		while `sing_changed' {
-			local sing_changed = 0
+	local n_sep_fe = 0
+	local sing_changed = 1
+	while `sing_changed' {
+		local sing_changed = 0
+		// (a) FE separation: drop FE groups whose depvar is all zero
+		if `do_separation' {
+			forvalues _ii = 1/`_sing_spec_count' {
+				tempvar _sgrp grpsum
+				quietly egen long `_sgrp' = group(`_sing_spec_`_ii'') if `touse'
+				quietly egen double `grpsum' = total(`depvar') if `touse', by(`_sgrp')
+				quietly count if `grpsum' == 0 & `touse'
+				if r(N) > 0 {
+					quietly replace `touse' = 0 if `grpsum' == 0 & `touse'
+					local n_sep_fe = `n_sep_fe' + r(N)
+					local sing_changed = 1
+				}
+				drop `_sgrp' `grpsum'
+			}
+		}
+		// (b) singletons (default; suppressed by keepsingletons)
+		if "`keepsingletons'" == "" {
 			forvalues _ii = 1/`_sing_spec_count' {
 				tempvar _sgrp grpcount
 				// Rebuild the joint group id on the CURRENT (shrunken) touse.
-				// Without this, after the first pass drops obs from one token,
-				// the stale group id for another token still shows groups of
-				// size >1 and the cascade fails to converge.
 				quietly egen long `_sgrp' = group(`_sing_spec_`_ii'') if `touse'
 				quietly bysort `_sgrp': gen long `grpcount' = _N if `touse'
 				quietly count if `grpcount' == 1 & `touse'
@@ -653,11 +663,13 @@ program _ivppmlhdfejl, eclass
 				drop `_sgrp' `grpcount'
 			}
 		}
-		quietly count if `touse'
-		if r(N) == 0 {
-			di as err "no observations remaining after singleton drop (try keepsingletons)"
-			exit 2000
-		}
+	}
+	local n_singletons = `n_singletons' + `n_sep_fe'
+	quietly count if `touse'
+	local N_after_sep = r(N)
+	if `N_after_sep' == 0 {
+		di as err "no observations remaining after the singleton / separation drop (try keepsingletons)"
+		exit 2000
 	}
 
 	// ---------- 5.  d() variable ----------
@@ -832,6 +844,17 @@ program _ivppmlhdfejl, eclass
 	local jl_itolopt ""
 	if `itolerance' > 0 local jl_itolopt , itol = `itolerance'
 
+	// v0.10.0: fast path switch, first-stage statistics, frequency weights
+	local jl_accopt , accel = true
+	if "`accel'" == "noaccel" local jl_accopt , accel = false
+	local jl_ffopt ""
+	if "`ffirst'" != "" & `n_endog' > 0 local jl_ffopt , ffirst = true
+	if "`ffirst'" != "" & `n_endog' == 0 {
+		di as txt "(ffirst ignored: no endogenous regressors)"
+	}
+	local jl_wtypeopt ""
+	if "`weight'" == "fweight" local jl_wtypeopt , weight_type = :fweight
+
 	// Estimate!
 	// v0.9.4: wrap the Julia call in try/catch so runaway-divergence /
 	// rank-deficient / non-convergence errors from ivppml_reg surface as
@@ -849,7 +872,8 @@ program _ivppmlhdfejl, eclass
 		Symbol[`jl_fes'], ///
 		tol = `tolerance', maxiter = `maxiterations', verbose = `verbose' ///
 		`jl_clustopt' `jl_wtopt' `jl_offopt' ///
-		`jl_stdopt' `jl_guessopt' `jl_itolopt'); ///
+		`jl_stdopt' `jl_guessopt' `jl_itolopt' ///
+		`jl_accopt' `jl_ffopt' `jl_wtypeopt'); ///
 		catch _e; ///
 		global m = nothing; ///
 		_msg = sprint(showerror, _e); ///
@@ -945,6 +969,35 @@ program _ivppmlhdfejl, eclass
 		forvalues j = 1/`n_clustvars' {
 			_jl: st_numscalar("`t'", Float64(m.N_clust[`j']));
 			local G`j' = `t'
+		}
+	}
+
+	// v0.10.0: first-stage statistics (ffirst)
+	local has_ffirst 0
+	if "`jl_ffopt'" != "" {
+		tempname t_hasff ff_out ff_idstat ff_iddf ff_idp ff_cdf ff_widstat ff_sdof
+		_jl: st_numscalar("`t_hasff'", m.first_stage === nothing ? 0.0 : 1.0);
+		if scalar(`t_hasff') == 1 {
+			local has_ffirst 1
+			_jl: _ivppml_ff = IVPPMLFixedEffectModels.ffirst_matrix(m)[1];
+			jl GetMatFromMat `ff_out', source(_ivppml_ff)
+			_jl: _ivppml_ff = nothing;
+			_jl: st_numscalar("`ff_idstat'", Float64(m.first_stage["idstat"]));
+			_jl: st_numscalar("`ff_iddf'", Float64(m.first_stage["iddf"]));
+			_jl: st_numscalar("`ff_idp'", Float64(m.first_stage["idp"]));
+			_jl: st_numscalar("`ff_cdf'", Float64(m.first_stage["cdf"]));
+			_jl: st_numscalar("`ff_widstat'", Float64(m.first_stage["widstat"]));
+			_jl: st_numscalar("`ff_sdof'", Float64(m.first_stage["_meta"]["sdof"]));
+			// row names: the endogenous regressors' display labels when none was dropped
+			local ff_rows `_endog_labels'
+			if rowsof(`ff_out') != `: word count `_endog_labels'' {
+				local ff_rows ""
+				forvalues _r = 1/`=rowsof(`ff_out')' {
+					local ff_rows `ff_rows' endog`_r'
+				}
+			}
+			matrix rownames `ff_out' = `ff_rows'
+			matrix colnames `ff_out' = F df1 df2 p partialR2 SWF SWdf1 SWdf2 SWp
 		}
 	}
 
@@ -1045,6 +1098,17 @@ program _ivppmlhdfejl, eclass
 	ereturn scalar df_m        = `rank_final'
 	ereturn scalar rank        = `rank_final'
 	ereturn scalar num_sep_mu  = `nsep_mu_final'
+	// v0.10.0
+	ereturn scalar accel       = ("`accel'" != "noaccel")
+	if `has_ffirst' {
+		ereturn scalar idstat    = scalar(`ff_idstat')
+		ereturn scalar iddf      = scalar(`ff_iddf')
+		ereturn scalar idp       = scalar(`ff_idp')
+		ereturn scalar cdf       = scalar(`ff_cdf')
+		ereturn scalar widstat   = scalar(`ff_widstat')
+		ereturn scalar sdofminus = scalar(`ff_sdof')
+		ereturn matrix first     = `ff_out'
+	}
 
 	// Wald chi2
 	if `K' > 0 {
@@ -1168,11 +1232,12 @@ program _ivppmlhdfejl, eclass
 
 	// ---------- 14.  Display ----------
 	di as txt _n "{hline 78}"
+	local _accdisp = cond("`accel'" == "noaccel", "noaccel", "accel")
 	if `is_iv' {
-		di as txt "IV-PPML with High-Dimensional Fixed Effects  (Julia backend v0.9.4)"
+		di as txt "IV-PPML with High-Dimensional Fixed Effects  (Julia backend v0.10.0, `_accdisp')"
 	}
 	else {
-		di as txt "PPML with High-Dimensional Fixed Effects  (Julia backend v0.9.4)"
+		di as txt "PPML with High-Dimensional Fixed Effects  (Julia backend v0.10.0, `_accdisp')"
 	}
 	di as txt "{hline 78}"
 
@@ -1223,6 +1288,9 @@ program _ivppmlhdfejl, eclass
 			as txt "  (iterations = " as res e(iterations) as txt ")"
 	}
 
+	if e(num_singletons) > 0 {
+		di as txt "(dropped `=e(num_singletons)' observations that are either singletons or separated by a fixed effect)"
+	}
 	if e(num_separated) > 0 {
 		di as txt "(`=e(num_separated)' separated observations dropped)"
 	}
@@ -1234,4 +1302,41 @@ program _ivppmlhdfejl, eclass
 		di as txt "Endogenous: " as res "`endog'"
 		di as txt "Instruments:" as res " `instruments'"
 	}
+	if `has_ffirst' {
+		_ivppmlhdfejl_ffdisp
+	}
+end
+
+
+// ==========================================================================
+// v0.10.0: first-stage statistics table (ffirst), read from e()
+// ==========================================================================
+
+program _ivppmlhdfejl_ffdisp
+	tempname F
+	matrix `F' = e(first)
+	local rn : rownames `F'
+	local cl = cond("`e(vce)'" == "cluster", "cluster-robust", "heteroskedasticity-robust")
+	di as txt _n "First-stage statistics (ffirst; `cl'; FEs partialled out, sdofminus = " ///
+		as res e(sdofminus) as txt ")"
+	di as txt "{hline 78}"
+	di as txt "Variable     {c |}   F(df1, df2)" _col(38) "P-val {c |}  SW F(df1, df2)" ///
+		_col(68) "P-val {c |} Part. R2"
+	di as txt "{hline 13}{c +}{hline 30}{c +}{hline 22}{c +}{hline 10}"
+	forvalues r = 1/`=rowsof(`F')' {
+		local v : word `r' of `rn'
+		local f1 = string(`F'[`r', 1], "%9.2f") + " (" + string(`F'[`r', 2], "%3.0f") + ", " + ///
+			string(`F'[`r', 3], "%6.0f") + ")"
+		local f2 = string(`F'[`r', 6], "%9.2f") + " (" + string(`F'[`r', 7], "%3.0f") + ", " + ///
+			string(`F'[`r', 8], "%6.0f") + ")"
+		di as txt %-12s abbrev("`v'", 12) " {c |} " as res %-22s "`f1'" %7.4f `F'[`r', 4] ///
+			as txt " {c |} " as res %-14s "`f2'" %6.4f `F'[`r', 9] as txt " {c |} " ///
+			as res %8.4f `F'[`r', 5]
+	}
+	di as txt "{hline 78}"
+	di as txt "Underidentification (Kleibergen-Paap rk LM):  chi2(" e(iddf) ") = " ///
+		as res %10.3f e(idstat) as txt "   P-val = " as res %6.4f e(idp)
+	di as txt "Weak identification: Cragg-Donald Wald F = " as res %10.3f e(cdf) ///
+		as txt ";  Kleibergen-Paap rk Wald F = " as res %10.3f e(widstat)
+	di as txt "{hline 78}"
 end

@@ -2,7 +2,7 @@
 
 Instrumental-variable Poisson pseudo-maximum likelihood estimation with high-dimensional fixed effects.
 
-v0.9.4 — please report issues to Ohyun Kwon at theekwonomist@gmail.com.
+v0.10.0 — for Stata, Julia, R and Python. Please report issues to Ohyun Kwon at theekwonomist@gmail.com.
 
 Ohyun Kwon, Mario Larch, Jangsu Yoon, Yoto V. Yotov
 
@@ -20,6 +20,23 @@ The command is designed to feel natural to users of [`ppmlhdfe`](https://github.
 | B | N × N × T | Exporter-year + Importer-year | `absorb(exp#year imp#year)` |
 | C | N × N × T | Pair + Exporter-year + Importer-year | `absorb(exp#imp exp#year imp#year)` |
 
+## What's New in v0.10.0
+
+- **Four versions of one estimator.** Stata/Mata (`ivppmlhdfe`), Julia (`IVPPMLFixedEffectModels.jl`, also callable from Stata as `ivppmlhdfejl`), and new native packages for R and Python. All four follow the same conventions (starting values, convergence, singletons, separation, collinearity, standard errors) and are checked against each other on a shared set of 17 cases in [`crosscheck/`](crosscheck/).
+- **A faster fixed-effect solver, on by default.** Three ideas from `fereg` ([Schmieder, 2026](https://www.nber.org/papers/w36017)): (i) a warm start, which partials out the previous iteration's demeaned columns again instead of the raw columns; (ii) a loose-to-tight schedule for the inner tolerance; (iii) the fixed effect with the most levels is eliminated exactly and the rest is solved by Jacobi-preconditioned conjugate gradients. The estimator does not change: on the test cases the fast path agrees with the earlier algorithm to 2e-10 in coefficients and 7e-7 in standard errors (Stata: 3e-11 and 6e-9). Most of the SE gap is the earlier algorithm's: it computes the variance at weights one iteration out of date, while the fast path recomputes it at the converged weights. `noaccel` (Stata) or `accel = false` (Julia, R, Python) turns it off, and in Stata and Julia this reproduces v0.9.4 bit for bit.
+- **First-stage statistics (`ffirst`).** Per endogenous regressor: first-stage F, partial R², Sanderson-Windmeijer F. For the system: Kleibergen-Paap rk LM and Wald F, Cragg-Donald Wald F. They are computed for the linearized IV problem at the converged IRLS weights and match `ivreghdfe`/`ranktest` on the test cases to 1.5e-9.
+
+Seconds per fit for a three-way gravity model (Class C, 200 countries × 30 years, 1,194,000 observations), one core:
+
+| Version | v0.9.4 | v0.10.0 | Speed-up |
+|---|---|---|---|
+| Stata/Mata | 185 | 66 | 2.8× |
+| Julia | 8.3 | 1.75 | 4.7× |
+| Python (new) | | 2.4 | |
+| R (new) | | 11.9 | |
+
+Stata was timed on a desktop PC; Julia, Python and R on one core of an AMD EPYC 9374F node. Across 13 benchmark designs (Classes A, B, C, up to 1.2 million observations), v0.10.0 is 3.7–8.1 times faster than v0.9.4 in Julia (part of this comes from a type-stability fix in the Julia code) and 1.9 times faster in Stata in total time.
+
 ## Installation
 
 Install dependencies:
@@ -35,6 +52,26 @@ net install ivppmlhdfe, from("https://raw.githubusercontent.com/ekwonomist/ivppm
 ```
 
 > **Example data.** The `data/` folder (example datasets and SPJ+bootstrap templates) is not bundled with `net install`. To use the examples, clone or download the repository manually from [GitHub](https://github.com/ekwonomist/ivppmlhdfe).
+
+R (pure R, no compiled code):
+```r
+remotes::install_github("ekwonomist/ivppmlhdfe", subdir = "R/ivppmlhdfe")
+library(ivppmlhdfe)
+fit <- ivppmlhdfe(y ~ x2 | exp^year + imp^year + exp^imp | x1 ~ z, data = d, vcov = ~pair, ffirst = TRUE)
+summary(fit)
+```
+
+Python (numpy, scipy, pandas):
+```
+pip install "git+https://github.com/ekwonomist/ivppmlhdfe#subdirectory=python"
+```
+```python
+import ivppmlhdfe
+r = ivppmlhdfe.fit(df, "y ~ x2 | exp^year + imp^year + exp^imp | x1 ~ z", vcov={"CL": ["pair"]}, ffirst=True)
+print(r.summary())
+```
+
+Both use the formula `depvar ~ exogenous | fixed effects | endogenous ~ instruments`, with interactions written `exp^year`; see [`R/ivppmlhdfe/README.md`](R/ivppmlhdfe/README.md) and [`python/README.md`](python/README.md) for the options. The Julia package is described [below](#julia-backend-ivppmlhdfejl--optional).
 
 ## Quick Example
 
@@ -82,8 +119,11 @@ ivppmlhdfe depvar [exogvars] (endogvars = instruments) [if] [in] [pw/fw], absorb
 | `maxiterations(#)` | Max IRLS iterations. Default: 10000. |
 | `nolog` | Suppress IRLS iteration log. |
 | `verbose(#)` | Verbosity: -1 (silent), 0 (default), 1 (iterations), 2 (detail). |
+| `ffirst` | Report first-stage statistics (F, partial R², Sanderson-Windmeijer F, Kleibergen-Paap, Cragg-Donald), as in `ivreg2`. Stored in `e(first)`, `e(idstat)`, `e(iddf)`, `e(idp)`, `e(cdf)`, `e(widstat)`. |
+| `noaccel` | Turn the fast fixed-effect solver off: the v0.9.4 algorithm, bit for bit. |
+| `accel(w t s)` | Diagnostic: use only the listed parts of the fast path (`w` warm start, `t` tolerance schedule, `s` exact elimination + conjugate gradients). |
 
-Unrecognised options (e.g. `dof()`, `pool()`, `accel()`) are forwarded to `reghdfe` via the `absorb()` string.
+Unrecognised options (e.g. `dof()`, `pool()`) are forwarded to `reghdfe` via the `absorb()` string. `accel()` with any value other than the letters `w`, `t`, `s` (e.g. `accel(cg)`) is `reghdfe`'s acceleration option and is forwarded too.
 
 ### Predict
 
@@ -140,7 +180,7 @@ margins, dydx(x2)
 
 ## Julia Backend (`ivppmlhdfejl`) — Optional
 
-A Julia-powered backend is available for faster estimation. It uses [`FixedEffects.jl`](https://github.com/FixedEffects/FixedEffects.jl) for FE absorption with solver reuse across IRLS iterations.
+A Julia-powered backend is available for faster estimation. Since v0.10.0 it uses the same fast fixed-effect solver as the Stata command (warm start, tolerance schedule, exact elimination + conjugate gradients); with `accel = false` it falls back to [`FixedEffects.jl`](https://github.com/FixedEffects/FixedEffects.jl) as in v0.9.4. `ivppmlhdfejl` passes `noaccel` and `ffirst` through. In Julia, `weight_type = :fweight` gives Stata's frequency-weight results (the default stays `:pweight`).
 
 Pure Julia is substantially faster than Stata/Mata for repeated estimation (Monte Carlo, bootstrap), since it avoids the per-call overhead of the Stata-Julia bridge.
 
@@ -217,10 +257,14 @@ The `data/` folder (available when you clone the repository) contains:
 ## References
 
 - Cameron, A. C., J. B. Gelbach, and D. L. Miller (2011). "Robust inference with multiway clustering." *Journal of Business and Economic Statistics*, 29(2), 238–249.
+- Cragg, J. G., and S. G. Donald (1993). "Testing identifiability and specification in instrumental variable models." *Econometric Theory*, 9(2), 222–240.
 - Correia, S., P. Guimaraes, and T. Zylkin (2020). "Fast Poisson estimation with high-dimensional fixed effects." *Stata Journal*, 20(1), 95–115.
 - Fernandez-Val, I. and M. Weidner (2016). "Individual and time effects in nonlinear panel models with large N, T." *Journal of Econometrics*, 192(1), 291–312.
+- Kleibergen, F., and R. Paap (2006). "Generalized reduced rank tests using the singular value decomposition." *Journal of Econometrics*, 133(1), 97–126.
 - Kwon, O., M. Larch, J. Yoon, and Y. V. Yotov (2026). "Instrumental-Variable Poisson PML with High-Dimensional Fixed Effects." *Drexel University School of Economics Working Paper* 2026-11. [[ideas.repec.org]](https://ideas.repec.org/p/drx/wpaper/202611.html)
 - Mullahy, J. (1997). "Instrumental-variable estimation of count data models." *Review of Economics and Statistics*, 79(4), 586–593. *(Related but distinct: a transformation estimator for multiplicative unobserved heterogeneity, not the additive moment used here.)*
+- Sanderson, E., and F. Windmeijer (2016). "A weak instrument F-test in linear IV models with multiple endogenous variables." *Journal of Econometrics*, 190(2), 212–221.
+- Schmieder, J. F. (2026). "fereg: Fast high-dimensional fixed-effects regressions in Stata." *NBER Working Paper* 36017.
 - Weidner, M. and T. Zylkin (2021). "Bias and consistency in three-way gravity models." *Journal of International Economics*, 132, 103513.
 - Windmeijer, F. A. G., and J. M. C. Santos Silva (1997). "Endogeneity in count data models: An application to demand for health care." *Journal of Applied Econometrics*, 12(3), 281–294.
 

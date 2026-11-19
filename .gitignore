@@ -37,3 +37,14 @@ Desktop.ini
 # Local environment
 .env
 *.local
+
+# Python / R build artifacts
+__pycache__/
+*.pyc
+.pytest_cache/
+*.egg-info/
+build/
+dist/
+*.Rcheck/
+ivppmlhdfe_*.tar.gz
+.Rhistory

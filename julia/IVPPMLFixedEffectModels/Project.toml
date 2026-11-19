@@ -1,6 +1,6 @@
 name = "IVPPMLFixedEffectModels"
 uuid = "fbf2f18d-b04c-4f09-b658-baf9122d0788"
-version = "0.9.4"
+version = "0.10.0"
 
 [deps]
 Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"

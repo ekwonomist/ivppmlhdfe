@@ -1,0 +1,25 @@
+Package: ivppmlhdfe
+Type: Package
+Title: IV-PPML with High-Dimensional Fixed Effects
+Version: 0.10.0
+Date: 2026-11-19
+Authors@R: c(
+    person("Ohyun", "Kwon", email = "theekwonomist@gmail.com", role = c("aut", "cre")),
+    person("Mario", "Larch", role = "aut"),
+    person("Jangsu", "Yoon", role = "aut"),
+    person("Yoto V.", "Yotov", role = "aut"))
+Description: Instrumental-variables Poisson pseudo-maximum likelihood (IV-PPML) with
+    high-dimensional fixed effects. The additive moment E[q(y - mu)] = 0 is solved by
+    iteratively reweighted two-stage least squares with the fixed effects concentrated out
+    at each iteration. The fixed-effect engine eliminates the fixed effect with the most
+    levels exactly and solves the rest by Jacobi-preconditioned conjugate gradients, with
+    warm starts and a staged inner tolerance. Reproduces the conventions of the Stata
+    command 'ivppmlhdfe' (singletons, separation, collinearity, robust and multi-way
+    cluster standard errors, weights, offsets) and reports first-stage statistics.
+    Pure R: no compiled code.
+License: MIT + file LICENSE
+Encoding: UTF-8
+Depends: R (>= 4.1.0)
+Imports: stats
+Suggests: testthat (>= 3.0.0), jsonlite
+Config/testthat/edition: 3

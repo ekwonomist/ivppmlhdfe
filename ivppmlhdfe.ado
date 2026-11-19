@@ -1,9 +1,13 @@
-*! ivppmlhdfe 0.9.4  23apr2026
+*! ivppmlhdfe 0.10.0  19nov2026
 *! IV-PPML with High-Dimensional Fixed Effects
 *! Algorithm: IRLS-IV targeting the additive moment E[q(y-mu)]=0, q=(x',z')',
 *!            following Windmeijer & Santos Silva (1997). Solved via iteratively
 *!            reweighted 2SLS (Correia, Guimaraes & Zylkin 2020), with FE
 *!            concentrated out at each iteration through reghdfe.
+*! 0.10.0: fast path from fereg (Schmieder 2026, NBER WP 36017): warm-started
+*!            partial-out, fereg's inner-tolerance schedule, exact elimination of
+*!            the largest FE + Jacobi-PCG; option noaccel = the 0.9.4 path bit for
+*!            bit; option ffirst = first-stage statistics (as ivreg2/ivreghdfe).
 *! Authors: Ohyun Kwon, Mario Larch, Jangsu Yoon, Yoto V. Yotov
 *! Contact: Ohyun Kwon, theekwonomist@gmail.com
 *!
@@ -104,9 +108,48 @@ program Replay
 		di as txt "Instruments:" as res " `e(instruments)'"
 	}
 
+	// First-stage statistics (option ffirst)
+	capture confirm matrix e(first)
+	if !_rc & "`table'" == "" DisplayFirst
+
 	// Show absorbed FE footnote (matching ppmlhdfe)
 	capture reghdfe_footnote
 	// return add  // not needed in eclass context
+end
+
+
+// First-stage summary (option ffirst): conventions as ivreg2/ivreghdfe at the
+// final IRLS weights w*mu, fixed effects partialled out (see help ivppmlhdfe).
+program DisplayFirst
+	tempname F
+	matrix `F' = e(first)
+	local names : rownames `F'
+	local k : word count `names'
+	local d1  = `F'[1, 2]
+	local d2  = `F'[1, 3]
+	local s1  = `F'[1, 7]
+	local s2  = `F'[1, 8]
+	di as txt _n "First-stage statistics (fixed effects partialled out at the final IRLS weights)"
+	di as txt "{hline 13}{c TT}{hline 20}{c TT}{hline 20}{c TT}{hline 12}"
+	di as txt %12s "Variable" " {c |}" %11s "F" %8s "P-val" " {c |}" %11s "SW F" %8s "P-val" ///
+		" {c |}" %11s "Partial R2"
+	di as txt "{hline 13}{c +}{hline 20}{c +}{hline 20}{c +}{hline 12}"
+	forvalues i = 1/`k' {
+		local v : word `i' of `names'
+		di as txt %12s abbrev("`v'", 12) " {c |} " as res %10.2f `F'[`i', 1] " " %7.4f `F'[`i', 4] ///
+			as txt " {c |} " as res %10.2f `F'[`i', 6] " " %7.4f `F'[`i', 9] ///
+			as txt " {c |} " as res %10.4f `F'[`i', 5]
+	}
+	di as txt "{hline 13}{c BT}{hline 20}{c BT}{hline 20}{c BT}{hline 12}"
+	di as txt "F(" as res `d1' as txt ", " as res `d2' as txt ");  SW F(" as res `s1' ///
+		as txt ", " as res `s2' as txt ")"
+	di as txt "Underidentification (Kleibergen-Paap rk LM):  Chi-sq(" as res e(iddf) as txt ") = " ///
+		as res %9.2f e(idstat) as txt "   P-val = " as res %6.4f e(idp)
+	di as txt "Weak identification:  Cragg-Donald Wald F = " as res %9.2f e(cdf) ///
+		as txt ";  Kleibergen-Paap rk Wald F = " as res %9.2f e(widstat)
+	local vt = cond("`e(vce)'" == "cluster", "cluster-robust", "robust")
+	di as txt "(`vt'; F statistics use N - L - " as res e(sdofminus) as txt ///
+		" degrees of freedom for the absorbed fixed effects, as ivreghdfe)"
 end
 
 
@@ -217,7 +260,49 @@ program Estimate, eclass
 		GUESS(string) KEEPSINgletons ///
 		STANDardize ///
 		TAGSEP(name) ZVARname(name) ///
+		NOACCEL ACCEL(string) FFIRST DIAGnostics ///
 		*]
+
+	// ---- fast path (0.10.0) ----
+	// Default components of the fast path: w = warm start, t = fereg's inner-
+	// tolerance schedule, s = exact elimination of the largest FE + Jacobi-PCG.
+	// noaccel restores the 0.9.4 path bit for bit. accel(w t s) picks
+	// components (diagnostic); any other accel() value (cg, sd, lsmr, ...) is
+	// reghdfe's acceleration option and is passed through as in 0.9.4.
+	local _acc_default "w t s"
+	local acc_list "`_acc_default'"
+	if `"`accel'"' != "" {
+		local _acc_in = lower(`"`accel'"')
+		local _acc_ours ""
+		local _acc_other ""
+		foreach _t of local _acc_in {
+			if inlist("`_t'", "w", "warm", "warmstart") local _acc_ours "`_acc_ours' w"
+			else if inlist("`_t'", "t", "tol", "tolschedule") local _acc_ours "`_acc_ours' t"
+			else if inlist("`_t'", "s", "schur") local _acc_ours "`_acc_ours' s"
+			else local _acc_other "`_acc_other' `_t'"
+		}
+		if "`_acc_ours'" != "" & "`_acc_other'" != "" {
+			di as err "accel(): fast-path components (w t s) cannot be mixed with reghdfe values (`_acc_other')"
+			exit 198
+		}
+		if "`_acc_ours'" != "" {
+			if "`noaccel'" != "" {
+				di as err "options noaccel and accel(`accel') may not be combined"
+				exit 198
+			}
+			local acc_list : list uniq _acc_ours
+		}
+		else {
+			// reghdfe passthrough, as in 0.9.4
+			local options `"`options' accel(`accel')"'
+		}
+	}
+	if "`noaccel'" != "" local acc_list ""
+	local acc_w = (strpos(" `acc_list' ", " w ") > 0)
+	local acc_t = (strpos(" `acc_list' ", " t ") > 0)
+	local acc_s = (strpos(" `acc_list' ", " s ") > 0)
+	local do_ffirst = ("`ffirst'" != "")
+	local do_diag = ("`diagnostics'" != "")
 
 	// absorb / noabsorb
 	if "`absorb'" == "" & "`noabsorb'" == "" {
@@ -693,7 +778,8 @@ program Estimate, eclass
 		"`offset'", "`d'", ///
 		`do_sep_fe', `do_sep_simplex', `do_sep_relu', ///
 		`itolerance', "`guess'", "`keepsingletons'" != "", ///
-		`do_sep_mu', "`standardize'" != "" ///
+		`do_sep_mu', "`standardize'" != "", ///
+		`acc_w', `acc_t', `acc_s', `do_ffirst', `do_diag' ///
 	)
 
 	// Refresh variable lists in case the two-stage collinearity removal
@@ -887,6 +973,37 @@ program Estimate, eclass
 
 	// margins compatibility: set marginsnotok (matching ppmlhdfe)
 	ereturn local marginsnotok "stdp Anscombe Cooksd Deviance Hat Likelihood Pearson Response Score Working ADJusted STAndardized STUdentized MODified"
+
+	// ---- 0.10.0: fast path record, diagnostics, first-stage statistics ----
+	ereturn local accel "`accel_eff'"
+	ereturn local version "0.10.0"
+	if `do_diag' {
+		ereturn scalar time_partial = ivppmlhdfe_t_partial
+		ereturn scalar time_irls    = ivppmlhdfe_t_irls
+		ereturn scalar inner_iter   = ivppmlhdfe_inner_iter
+		ereturn scalar time_build   = ivppmlhdfe_t_build
+		ereturn scalar po_share     = ivppmlhdfe_t_partial / max(ivppmlhdfe_t_irls, 1e-9)
+	}
+	if `do_ffirst' {
+		if `n_endog' == 0 {
+			di as txt "(note: ffirst ignored: the model has no endogenous regressors)"
+		}
+		else if ivppmlhdfe_ff_ok != 1 {
+			di as err "warning: first-stage statistics could not be computed"
+		}
+		else {
+			matrix rownames __ivppmlhdfe_first = `endog'
+			matrix colnames __ivppmlhdfe_first = F df1 df2 p partialR2 SWF SWdf1 SWdf2 SWp
+			ereturn matrix first = __ivppmlhdfe_first
+			ereturn scalar idstat    = ivppmlhdfe_ff_idstat
+			ereturn scalar iddf      = ivppmlhdfe_ff_iddf
+			ereturn scalar idp       = ivppmlhdfe_ff_idp
+			ereturn scalar cdf       = ivppmlhdfe_ff_cdf
+			ereturn scalar widstat   = ivppmlhdfe_ff_widstat
+			ereturn scalar sdofminus = ivppmlhdfe_ff_sdof
+		}
+	}
+	capture matrix drop __ivppmlhdfe_first
 
 	// Populate e(rss) and e(rmse) for esttab / estat ic compatibility.
 	// Must run AFTER `ereturn local predict "ivppmlhdfe_p"` so `predict mu`
@@ -1169,6 +1286,464 @@ real matrix ivppmlhdfe_robustvce(
 }
 
 
+// ==========================================================================
+// 0.10.0 (s): exact elimination of the fixed effect with the most levels,
+// then Jacobi-preconditioned conjugate gradients on the remaining system
+// S = D2' W M1 D2 (never formed), all data columns in lockstep. Borrowed from
+// fereg (Schmieder 2026, NBER WP 36017, pp. 20-24); written for Mata on the
+// factors of reghdfe's FixedEffects object. Stopping rule per column:
+// ||D2'W e||_(D2'WD2)^-1 <= tol * sqrt(F) * ||sqrt(W) e||, re-checked on a
+// freshly computed residual (fereg's certificate) before a column is accepted.
+// ==========================================================================
+
+struct ivppmlhdfe_schur_t {
+	real scalar     N, F, big, G1, R, m, ok, lastiters, lastconv, passes
+	real colvector  p1, id1s, w, n1inv, d2, d2inv, pinv, cellg, clord
+	real matrix     info1, levs, perms, infoall, cord, cinfoall, clinfoall
+	real rowvector  offs, ms, coffs, ncells
+}
+
+real scalar ivppmlhdfe_schur_ok(class FixedEffects scalar HDFE)
+{
+	if (HDFE.G < 2) return(0)
+	if (!all(HDFE.intercepts)) return(0)
+	if (any(HDFE.num_slopes)) return(0)
+	return(1)
+}
+
+void ivppmlhdfe_schur_build(struct ivppmlhdfe_schur_t scalar S,
+	class FixedEffects scalar HDFE)
+{
+	real scalar     g, r, off, coff, n, nc_r
+	real rowvector  nlev
+	real colvector  lev1, lev, ord, k1, k2, chg, cid, cl, clo, invp1, pg, key
+	real matrix     inf, cinf, linf
+
+	S.F = HDFE.G
+	n = rows(HDFE.factors[1].levels)
+	S.N = n
+	nlev = J(1, S.F, .)
+	for (g = 1; g <= S.F; g++) nlev[g] = HDFE.factors[g].num_levels
+	S.big = 1
+	for (g = 2; g <= S.F; g++) if (nlev[g] > nlev[S.big]) S.big = g
+	lev1 = HDFE.factors[S.big].levels
+	// ftools' counting-sort permutation of the factor (stable), if available
+	S.p1 = J(0, 1, .)
+	if (!HDFE.factors[S.big].is_sorted) S.p1 = HDFE.factors[S.big].p
+	else S.p1 = (1::n)
+	if (rows(S.p1) != n) S.p1 = order((lev1, (1::n)), (1, 2))
+	S.id1s = lev1[S.p1]
+	S.info1 = HDFE.factors[S.big].info
+	if (rows(S.info1) != nlev[S.big]) S.info1 = panelsetup(S.id1s, 1)
+	S.G1 = rows(S.info1)
+	invp1 = invorder(S.p1)
+	S.R = S.F - 1
+	S.levs = J(n, S.R, .)
+	S.perms = J(n, S.R, .)
+	S.cord = J(n, S.R, .)
+	S.offs = J(1, S.R, .)
+	S.ms = J(1, S.R, .)
+	S.coffs = J(1, S.R, .)
+	S.ncells = J(1, S.R, .)
+	S.infoall = J(0, 2, .)
+	S.cinfoall = J(0, 2, .)
+	S.clinfoall = J(0, 2, .)
+	S.cellg = J(0, 1, .)
+	S.clord = J(0, 1, .)
+	S.ok = (S.G1 == nlev[S.big])
+	off = 0
+	coff = 0
+	r = 0
+	for (g = 1; g <= S.F; g++) {
+		if (g == S.big) continue
+		r++
+		lev = HDFE.factors[g].levels[S.p1]
+		S.levs[., r] = off :+ lev
+		// positions (in the p1 order) sorted by this factor: its own
+		// counting-sort permutation mapped through p1 (no new sort)
+		pg = J(0, 1, .)
+		if (!HDFE.factors[g].is_sorted) pg = HDFE.factors[g].p
+		else pg = (1::n)
+		if (rows(pg) == n) {
+			ord = invp1[pg]
+			inf = HDFE.factors[g].info
+		}
+		else {
+			ord = order((lev, (1::n)), (1, 2))
+			inf = panelsetup(lev[ord], 1)
+		}
+		S.perms[., r] = ord
+		if (rows(inf) != nlev[g]) S.ok = 0
+		S.infoall = S.infoall \ inf
+		S.offs[r] = off
+		S.ms[r] = nlev[g]
+		// cells = (group of the eliminated FE, level of FE g): one numeric key
+		key = (S.id1s :- 1) :* nlev[g] :+ lev
+		ord = order(key, 1)
+		S.cord[., r] = ord
+		k1 = S.id1s[ord]
+		k2 = lev[ord]
+		key = key[ord]
+		chg = 1 \ (key[|2 \ n|] :!= key[|1 \ n - 1|])
+		cid = runningsum(chg)
+		cinf = panelsetup(cid, 1)
+		nc_r = rows(cinf)
+		S.cinfoall = S.cinfoall \ cinf
+		S.cellg = S.cellg \ k1[cinf[., 1]]
+		cl = k2[cinf[., 1]]
+		clo = order(cl, 1)
+		S.clord = S.clord \ clo
+		linf = panelsetup(cl[clo], 1)
+		if (rows(linf) != nlev[g]) S.ok = 0
+		S.clinfoall = S.clinfoall \ linf
+		S.coffs[r] = coff
+		S.ncells[r] = nc_r
+		off = off + nlev[g]
+		coff = coff + nc_r
+	}
+	S.m = off
+	S.passes = 0
+	S.lastiters = 0
+	S.lastconv = 1
+}
+
+// Refill the weight-dependent pieces: group weight sums of the eliminated FE,
+// level weight sums of the others, and the exact diagonal of S (Jacobi)
+void ivppmlhdfe_schur_weights(struct ivppmlhdfe_schur_t scalar S, real colvector wt)
+{
+	real scalar     r
+	real colvector  rows_r, crows, C, d2r, dS, idx
+
+	S.w = wt[S.p1]
+	S.n1inv = 1 :/ panelsum(S.w, S.info1)
+	S.d2 = J(S.m, 1, 0)
+	dS = J(S.m, 1, 0)
+	for (r = 1; r <= S.R; r++) {
+		rows_r = (S.offs[r] + 1)::(S.offs[r] + S.ms[r])
+		crows = (S.coffs[r] + 1)::(S.coffs[r] + S.ncells[r])
+		d2r = panelsum(S.w[S.perms[., r]], S.infoall[rows_r, .])
+		C = panelsum(S.w[S.cord[., r]], S.cinfoall[crows, .])
+		C = (C :* C) :* S.n1inv[S.cellg[crows]]
+		S.d2[rows_r] = d2r
+		dS[rows_r] = d2r - panelsum(C[S.clord[crows]], S.clinfoall[rows_r, .])
+	}
+	S.d2inv = 1 :/ S.d2
+	S.pinv = J(S.m, 1, 0)
+	idx = selectindex(dS :> 1e-12 :* S.d2)
+	if (rows(idx)) S.pinv[idx] = 1 :/ dS[idx]
+}
+
+// Q = S * P for all columns in one pass over the data
+real matrix ivppmlhdfe_schur_apply(struct ivppmlhdfe_schur_t scalar S, real matrix P)
+{
+	real scalar     r
+	real matrix     U, sb, E, Q
+	real colvector  rows_r
+
+	U = P[S.levs[., 1], .]
+	for (r = 2; r <= S.R; r++) U = U + P[S.levs[., r], .]
+	sb = panelsum(S.w :* U, S.info1) :* S.n1inv
+	E = S.w :* (U - sb[S.id1s, .])
+	Q = J(S.m, cols(P), 0)
+	for (r = 1; r <= S.R; r++) {
+		rows_r = (S.offs[r] + 1)::(S.offs[r] + S.ms[r])
+		Q[rows_r, .] = panelsum(E[S.perms[., r], .], S.infoall[rows_r, .])
+	}
+	S.passes = S.passes + 1
+	return(Q)
+}
+
+// E = M1 (V - D2 X);  Gr = D2' W E;  en2 = ||sqrt(W) E||^2 per column
+void ivppmlhdfe_schur_resid(struct ivppmlhdfe_schur_t scalar S, real matrix V,
+	real matrix X, real matrix Gr, real rowvector en2, real matrix E)
+{
+	real scalar     r
+	real matrix     U, sb, WE
+	real colvector  rows_r
+
+	U = V
+	for (r = 1; r <= S.R; r++) U = U - X[S.levs[., r], .]
+	sb = panelsum(S.w :* U, S.info1) :* S.n1inv
+	E = U - sb[S.id1s, .]
+	WE = S.w :* E
+	en2 = colsum(WE :* E)
+	Gr = J(S.m, cols(V), 0)
+	for (r = 1; r <= S.R; r++) {
+		rows_r = (S.offs[r] + 1)::(S.offs[r] + S.ms[r])
+		Gr[rows_r, .] = panelsum(WE[S.perms[., r], .], S.infoall[rows_r, .])
+	}
+	S.passes = S.passes + 1
+}
+
+// Partial the fixed effects out of every column of data (rows in HDFE.sample
+// order) under the current weights; returns the residuals in the same order
+real matrix ivppmlhdfe_schur_partial(struct ivppmlhdfe_schur_t scalar S,
+	real matrix data, real scalar tol)
+{
+	real scalar     nc, thr2, total, restarts, maxiter
+	real matrix     V, X, B, Rr, P, Q, Zr, E, Gq, out
+	real rowvector  c0, act, conv, rz, pq, alpha, e2, s, beta, redo, en2, nb, kept
+
+	maxiter = 10000
+	nc = cols(data)
+	V = data[S.p1, .]
+	nb = colsum(V :* V)
+	thr2 = (tol * sqrt(S.F))^2
+	X = J(S.m, nc, 0)
+	ivppmlhdfe_schur_resid(S, V, X, B, c0, E)
+	Rr = B
+	act = (colsum((Rr :* Rr) :* S.d2inv) :> (thr2 :* c0))
+	conv = J(1, nc, 0)
+	total = 0
+	restarts = 0
+	while (1) {
+		Zr = S.pinv :* Rr
+		rz = colsum(Rr :* Zr) :* act
+		act = act :* (rz :> 0)
+		P = Zr :* act
+		while (any(act) & total < maxiter) {
+			Q = ivppmlhdfe_schur_apply(S, P)
+			total++
+			pq = colsum(P :* Q)
+			act = act :* (pq :> 0)
+			alpha = editmissing(rz :/ pq, 0) :* act
+			X = X + P :* alpha
+			Rr = Rr - Q :* alpha
+			e2 = c0 - colsum(X :* (B + Rr))
+			e2 = e2 :* (e2 :> 0)
+			act = act :* (colsum((Rr :* Rr) :* S.d2inv) :> (thr2 :* e2))
+			Zr = S.pinv :* Rr
+			s = colsum(Rr :* Zr)
+			beta = editmissing(s :/ rz, 0) :* act
+			rz = s
+			P = (Zr + P :* beta) :* act
+		}
+		// certificate: recompute the residual and the gradient from scratch
+		ivppmlhdfe_schur_resid(S, V, X, Gq, en2, E)
+		conv = conv :| (colsum((Gq :* Gq) :* S.d2inv) :<= (thr2 :* en2))
+		redo = (!conv) :* (total < maxiter) :* (restarts < 50)
+		if (!any(redo)) break
+		Rr = Rr :* (!redo) + Gq :* redo
+		act = redo
+		restarts++
+	}
+	S.lastiters = total
+	S.lastconv = all(conv)
+	// reghdfe's rule: zero a column whose partialled values are all ~0
+	kept = (colsum(E :* E) :/ nb) :> min((1e-6, tol / 10))
+	E = E :* kept
+	out = J(rows(data), nc, .)
+	out[S.p1, .] = E
+	return(out)
+}
+
+
+// ==========================================================================
+// 0.10.0: first-stage statistics (option ffirst). Written from the formulas in
+// SPEC_ffirst.md (ivreg2/ivreghdfe conventions; Kleibergen and Paap 2006 rk
+// statistic; Sanderson and Windmeijer 2016), not from ivreg2/ranktest code.
+// ==========================================================================
+
+real matrix ivppmlhdfe_ff_meat(real matrix S, real colvector om, real colvector psi,
+	real matrix cids, real scalar ncl)
+{
+	real scalar     mask, j, first_j, subset_size, sgn
+	real colvector  cid, srt
+	real matrix     M, Sw, U
+
+	if (ncl == 0) return(quadcross(S, psi, S))
+	M = J(cols(S), cols(S), 0)
+	Sw = S :* om
+	for (mask = 1; mask < 2^ncl; mask++) {
+		subset_size = 0
+		first_j = 1
+		for (j = 1; j <= ncl; j++) {
+			if (mod(trunc(mask / 2^(j-1)), 2) == 1) {
+				subset_size++
+				if (first_j) {
+					cid = cids[., j]
+					first_j = 0
+				}
+				else {
+					cid = ivppmlhdfe_interact_id(cid, cids[., j])
+				}
+			}
+		}
+		srt = order(cid, 1)
+		U = panelsum(Sw[srt, .], panelsetup(cid[srt], 1))
+		sgn = (mod(subset_size, 2) == 1) ? 1 : -1
+		M = M + sgn * quadcross(U, U)
+	}
+	return(M)
+}
+
+real scalar ivppmlhdfe_ff_wald(real matrix R, real colvector e, real matrix RtRi,
+	real colvector b, real scalar Lz, real colvector om, real colvector psi,
+	real matrix cids, real scalar ncl)
+{
+	real matrix     V
+	real colvector  bz
+
+	V = RtRi * ivppmlhdfe_ff_meat(R :* e, om, psi, cids, ncl) * RtRi
+	bz = b[|1 \ Lz|]
+	return(bz' * invsym(V[|1, 1 \ Lz, Lz|]) * bz)
+}
+
+void ivppmlhdfe_ff_F(real scalar W0, real scalar q, real scalar N, real scalar L,
+	real scalar sdof, real scalar cl, real scalar G, real scalar F, real scalar df2)
+{
+	if (cl) {
+		F = W0 / (N - 1) * (N - L - sdof) * (G - 1) / G / q
+		df2 = G - 1
+	}
+	else {
+		df2 = N - L - sdof
+		F = W0 / N * df2 / q
+	}
+}
+
+real matrix ivppmlhdfe_msqrt(real matrix M)
+{
+	real matrix     X
+	real rowvector  L
+
+	X = .
+	L = .
+	symeigensystem(M, X, L)
+	L = L :* (L :> 0)
+	return(X * diag(sqrt(L)) * X')
+}
+
+real scalar ivppmlhdfe_ff_rk(real matrix v, real matrix Zb, real matrix T,
+	real matrix Jm, real colvector lam, real colvector om, real colvector psi,
+	real matrix cids, real scalar ncl)
+{
+	real matrix     S, Vt
+	real scalar     k
+
+	S = J(rows(v), 0, .)
+	for (k = 1; k <= cols(v); k++) S = S, (v[., k] :* Zb)
+	Vt = T * Jm * ivppmlhdfe_ff_meat(S, om, psi, cids, ncl) * Jm' * T'
+	return(lam' * invsym(Vt) * lam)
+}
+
+void ivppmlhdfe_ffirst(real matrix X_dm, real matrix Z_dm, real colvector om,
+	real colvector psi, real matrix cids, real scalar ncl, real scalar N,
+	real scalar sdof, real scalar Kx, real scalar Ke, real scalar Lz)
+{
+	real scalar     L, cl, G, j, k, W0, F, df2, q, pr2, kk, rkL, rkW
+	real scalar     idstat, iddf, widstat, cdf
+	real matrix     Wx, Xe, Zi, R, RtRi, Pi, Xhat, Ff, Sm, Sa, Mw, Y, Zb
+	real matrix     A, B, C, PiZ, LA, LB, Theta, U, Vt, Vm, Ap, Bp, T, Jm
+	real matrix     u12, u22, v12, v22
+	real colvector  b, e, er, x, b1, e1, b2, e2, s, lam
+	real rowvector  others
+
+	if (Kx > 0) Wx = X_dm[., 1..Kx]
+	else        Wx = J(rows(X_dm), 0, .)
+	Xe = X_dm[., (Kx + 1)..(Kx + Ke)]
+	Zi = Z_dm[., (Kx + 1)..(Kx + Lz)]
+	R = (Zi, Wx)
+	L = Kx + Lz
+	cl = (ncl > 0)
+	G = .
+	if (cl) {
+		for (j = 1; j <= ncl; j++) G = min((G, rows(uniqrows(cids[., j]))))
+	}
+	RtRi = invsym(quadcross(R, om, R))
+	Pi = J(L, Ke, .)
+	Ff = J(Ke, 9, .)
+	for (k = 1; k <= Ke; k++) {
+		x = Xe[., k]
+		b = RtRi * quadcross(R, om, x)
+		Pi[., k] = b
+		e = x - R * b
+		W0 = ivppmlhdfe_ff_wald(R, e, RtRi, b, Lz, om, psi, cids, ncl)
+		F = .
+		df2 = .
+		ivppmlhdfe_ff_F(W0, Lz, N, L, sdof, cl, G, F, df2)
+		if (Kx) er = x - Wx * (invsym(quadcross(Wx, om, Wx)) * quadcross(Wx, om, x))
+		else er = x
+		pr2 = 1 - quadcross(e, om, e) / quadcross(er, om, er)
+		Ff[k, 1..5] = (F, Lz, df2, Ftail(Lz, df2, F), pr2)
+	}
+	// Sanderson-Windmeijer
+	Xhat = R * Pi
+	for (k = 1; k <= Ke; k++) {
+		if (Ke == 1) {
+			Ff[k, 6..9] = Ff[k, (1, 2, 3, 4)]
+			continue
+		}
+		others = select(1..Ke, (1..Ke) :!= k)
+		Sm = (Xhat[., others], Wx)
+		Sa = (Xe[., others], Wx)
+		b1 = invsym(quadcross(Sm, om, Sm)) * quadcross(Sm, om, Xe[., k])
+		e1 = Xe[., k] - Sa * b1
+		b2 = RtRi * quadcross(R, om, e1)
+		e2 = e1 - R * b2
+		W0 = ivppmlhdfe_ff_wald(R, e2, RtRi, b2, Lz, om, psi, cids, ncl)
+		q = Lz - Ke + 1
+		F = .
+		df2 = .
+		ivppmlhdfe_ff_F(W0, q, N, L, sdof, cl, G, F, df2)
+		Ff[k, 6..9] = (F, q, df2, Ftail(q, df2, F))
+	}
+	// Kleibergen-Paap rk statistics and Cragg-Donald, W partialled out
+	if (Kx) {
+		Mw = invsym(quadcross(Wx, om, Wx))
+		Y = Xe - Wx * (Mw * quadcross(Wx, om, Xe))
+		Zb = Zi - Wx * (Mw * quadcross(Wx, om, Zi))
+	}
+	else {
+		Y = Xe
+		Zb = Zi
+	}
+	A = quadcross(Zb, om, Zb)
+	B = quadcross(Y, om, Y)
+	C = quadcross(Zb, om, Y)
+	PiZ = invsym(A) * C
+	LA = cholesky(A)
+	LB = cholesky(B)
+	Theta = LA' * PiZ * luinv(LB')
+	U = .
+	s = .
+	Vt = .
+	fullsvd(Theta, U, s, Vt)
+	Vm = Vt'
+	kk = Ke - 1
+	if (kk == 0) {
+		Ap = I(Lz)
+		Bp = I(1)
+	}
+	else {
+		u12 = U[1..kk, (kk + 1)..Lz]
+		u22 = U[(kk + 1)..Lz, (kk + 1)..Lz]
+		v12 = Vm[1..kk, (kk + 1)..Ke]
+		v22 = Vm[(kk + 1)..Ke, (kk + 1)..Ke]
+		Ap = (u12 \ u22) * luinv(u22) * ivppmlhdfe_msqrt(u22 * u22')
+		Bp = ivppmlhdfe_msqrt(v22 * v22') * luinv(v22') * (v12 \ v22)'
+	}
+	T = Bp # Ap'
+	lam = T * vec(Theta)
+	Jm = luinv(LB) # luinv(LA)
+	rkL = ivppmlhdfe_ff_rk(Y, Zb, T, Jm, lam, om, psi, cids, ncl)
+	rkW = ivppmlhdfe_ff_rk(Y - Zb * PiZ, Zb, T, Jm, lam, om, psi, cids, ncl)
+	iddf = Lz - Ke + 1
+	idstat = rkL
+	if (cl) widstat = rkW / (N - 1) * (N - L - sdof) * (G - 1) / G / Lz
+	else    widstat = rkW / N * (N - L - sdof) / Lz
+	cdf = min((s :* s) :/ (1 :- s :* s)) * (N - sdof - L) / Lz
+	st_matrix("__ivppmlhdfe_first", Ff)
+	st_numscalar("ivppmlhdfe_ff_idstat", idstat)
+	st_numscalar("ivppmlhdfe_ff_iddf", iddf)
+	st_numscalar("ivppmlhdfe_ff_idp", chi2tail(iddf, idstat))
+	st_numscalar("ivppmlhdfe_ff_cdf", cdf)
+	st_numscalar("ivppmlhdfe_ff_widstat", widstat)
+	st_numscalar("ivppmlhdfe_ff_sdof", sdof)
+	st_numscalar("ivppmlhdfe_ff_ok", 1)
+}
+
+
 // --------------------------------------------------------------------------
 // Main IRLS-IV loop
 // --------------------------------------------------------------------------
@@ -1198,7 +1773,12 @@ void ivppmlhdfe_irls(
 	string scalar guess_s,
 	real   scalar keepsingletons,
 	real   scalar do_sep_mu,
-	real   scalar do_standardize)
+	real   scalar do_standardize,
+	real   scalar acc_w,
+	real   scalar acc_t,
+	real   scalar acc_s,
+	real   scalar do_ffirst,
+	real   scalar do_diag)
 {
 	// ---- Declarations ----
 	real colvector y, mu, eta, old_eta, z, irls_w, resid, w_user
@@ -1271,8 +1851,37 @@ void ivppmlhdfe_irls(
 	if (args() < 23) guess_s = ""
 	if (args() < 24) keepsingletons = 0
 	if (args() < 25) do_sep_mu = 0
-	if (args() < 26) do_standardize = 0
+	// 0.9.4 compatibility: 0.9.4 always passed 25 arguments, so its guard
+	// "if (args() < 26) do_standardize = 0" always fired and the standardize
+	// option never took effect. Kept as is so that noaccel reproduces 0.9.4
+	// bit for bit (reported to the maintainers; not a fast-path question).
+	do_standardize = 0
+	if (args() < 26) acc_w = 0
+	if (args() < 27) acc_t = 0
+	if (args() < 28) acc_s = 0
+	if (args() < 29) do_ffirst = 0
+	if (args() < 30) do_diag = 0
 	num_sep_fe = 0
+
+	// ---- 0.10.0 fast-path state ----
+	// any_acc = 0 runs exactly the 0.9.4 code path (bit for bit).
+	real scalar any_acc, use_schur, ws_ready, inner_total, t_partial, t_irls
+	real matrix XZ_coll
+	real colvector z_old
+	struct ivppmlhdfe_schur_t scalar SC
+	any_acc = (acc_w | acc_t | acc_s)
+	use_schur = 0
+	ws_ready = 0
+	inner_total = 0
+	t_partial = 0
+	t_irls = 0
+	XZ_coll = J(0, 0, .)
+	if (do_diag) {
+		timer_clear(96)
+		timer_clear(97)
+		timer_clear(98)
+		timer_on(97)
+	}
 	num_sep_advanced = 0
 	num_sep_mu = 0
 
@@ -1460,6 +2069,26 @@ void ivppmlhdfe_irls(
 		// a half-initialized state when no user weights are present
 		// (HDFE.load_weights("", ...) leaves HDFE.weight as a 1×1 scalar
 		// which corrupts subsequent partial_out invocations).
+		// 0.10.0 (s): exact elimination + PCG on the FE objects, if eligible
+		if (acc_s) {
+			use_schur = ivppmlhdfe_schur_ok(HDFE)
+			if (use_schur) {
+				if (do_diag) timer_on(96)
+				ivppmlhdfe_schur_build(SC, HDFE)
+				if (do_diag) timer_off(96)
+				use_schur = SC.ok
+			}
+		}
+		if (use_schur) {
+			if (do_diag) timer_on(98)
+			ivppmlhdfe_schur_weights(SC, has_weight ? w_user : J(N, 1, 1))
+			_edittozerotol(data_for_coll, min((tolerance, 1e-12)))
+			data_for_coll = ivppmlhdfe_schur_partial(SC, data_for_coll, target_inner_tol)
+			inner_total = inner_total + SC.lastiters
+			if (do_diag) timer_off(98)
+		}
+		else {
+		if (do_diag) timer_on(98)
 		HDFE.load_weights("aweight", "<placeholder for collinearity>",
 		                  has_weight ? w_user : J(N, 1, 1), 0)
 		HDFE.tolerance = target_inner_tol
@@ -1469,6 +2098,9 @@ void ivppmlhdfe_irls(
 		HDFE.load_weights(bk_wt_type_coll, bk_wt_var_coll, bk_w_coll, 0)
 		HDFE.tolerance = bk_tol_coll
 		bk_w_coll = .
+		if (do_diag) timer_off(98)
+		if (do_diag) inner_total = inner_total + HDFE.iteration_count
+		}
 
 		w_for_coll = has_weight ? w_user : J(1, 1, 1)
 
@@ -1610,6 +2242,12 @@ void ivppmlhdfe_irls(
 			}
 		}
 
+		// 0.10.0 (w): keep the surviving columns, already free of the fixed
+		// effects under the user weights, as iteration 1's warm start
+		if (acc_w) {
+			XZ_coll = data_for_coll[., selectindex((exog_keep, endog_keep, inst_keep))]
+		}
+
 		// Free temporary
 		data_for_coll = J(0, 0, .)
 	}
@@ -1672,6 +2310,7 @@ void ivppmlhdfe_irls(
 					target_inner_tol, 1e-12, 1000, non_sep, verbose)
 				if (n_drop_sep > 0 & non_sep != .) {
 					Z_excl = Z_excl[non_sep, .]
+					if (rows(XZ_coll)) XZ_coll = XZ_coll[non_sep, .]
 					if (has_weight) w_user = w_user[non_sep]
 					else            w_user = J(rows(y), 1, 1)
 					if (has_offset) {
@@ -1691,6 +2330,10 @@ void ivppmlhdfe_irls(
 					HDFE = HDFE.reload(0)
 					HDFE.num_singletons = _ns_s
 					HDFE.save_touse()  // sync Stata touse for e(sample) + predict
+					if (use_schur) {
+						ivppmlhdfe_schur_build(SC, HDFE)
+						use_schur = SC.ok
+					}
 					stdev_x = diagonal(cholesky(diag(quadvariance(X, w_user))))'
 					w_for_sep = has_weight ? w_user : J(1, 1, 1)
 				}
@@ -1710,6 +2353,7 @@ void ivppmlhdfe_irls(
 					non_sep, 0, 0, verbose)
 				if (n_drop_sep > 0 & non_sep != .) {
 					Z_excl = Z_excl[non_sep, .]
+					if (rows(XZ_coll)) XZ_coll = XZ_coll[non_sep, .]
 					if (has_weight) w_user = w_user[non_sep]
 					else            w_user = J(rows(y), 1, 1)
 					if (has_offset) {
@@ -1728,6 +2372,10 @@ void ivppmlhdfe_irls(
 					HDFE = HDFE.reload(0)
 					HDFE.num_singletons = _ns_r
 					HDFE.save_touse()  // sync Stata touse
+					if (use_schur) {
+						ivppmlhdfe_schur_build(SC, HDFE)
+						use_schur = SC.ok
+					}
 				}
 			}
 
@@ -1763,6 +2411,10 @@ void ivppmlhdfe_irls(
 			else {
 				stdev_z[_kk_std] = 1
 			}
+		}
+		// (w) the warm-start columns are linear in X and Z: rescale them alike
+		if (rows(XZ_coll)) {
+			XZ_coll = XZ_coll :/ (stdev_x, stdev_z)
 		}
 		if (verbose > 0) {
 			printf("{txt}(data standardized: stdev_x = ")
@@ -1861,18 +2513,50 @@ void ivppmlhdfe_irls(
 		irls_w = rowmax((irls_w, J(N, 1, 1e-20)))
 
 		// (c) Update HDFE weights
-		HDFE.update_sorted_weights(irls_w)
-		HDFE.update_cvar_objects()
+		if (do_diag) timer_on(98)
+		if (use_schur) {
+			ivppmlhdfe_schur_weights(SC, irls_w)
+		}
+		else {
+			HDFE.update_sorted_weights(irls_w)
+			HDFE.update_cvar_objects()
+		}
 
 		// (d) Stack data matrix (z without offset, X, Z_excl)
-		data = (z, X, Z_excl)
+		if (acc_w & ws_ready) {
+			// (w) warm start: M_new(z_dm_old + z - z_old) = M_new z and
+			// M_new X_dm_old = M_new X, because v - D*alpha has the same
+			// projection as v (fereg's re-projection; ppmlhdfe does the same)
+			data[., 1] = data[., 1] + z - z_old
+		}
+		else if (acc_w & rows(XZ_coll)) {
+			// iteration 1: X and Z from the collinearity pass (FE-free under
+			// the user weights)
+			data = (z, XZ_coll)
+			XZ_coll = J(0, 0, .)
+		}
+		else {
+			data = (z, X, Z_excl)
+		}
+		if (acc_w) {
+			z_old = z
+			ws_ready = 1
+		}
 
 		// (e) Demean all variables via HDFE
 		_edittozerotol(data, min((tolerance, 1e-12)))
-		HDFE._partial_out(data, 0, 0, 0, 1)
+		if (use_schur) {
+			data = ivppmlhdfe_schur_partial(SC, data, HDFE.tolerance)
+			inner_total = inner_total + SC.lastiters
+		}
+		else {
+			HDFE._partial_out(data, 0, 0, 0, 1)
+			if (do_diag) inner_total = inner_total + HDFE.iteration_count
+		}
 		// Round near-zero demeaned values to exact zero (prevents
 		// floating-point noise accumulation with high-dimensional FE)
 		_edittozerotol(data, min((tolerance, 1e-12)))
+		if (do_diag) timer_off(98)
 
 		// (f) Extract demeaned pieces
 		z_dm = data[., 1]
@@ -1994,7 +2678,22 @@ void ivppmlhdfe_irls(
 		if (converged) break
 
 		// Adaptive inner tolerance
-		if (iter > 1 & eps < HDFE.tolerance) {
+		if (acc_t) {
+			// (t) fereg's scheduled inner tolerance (fereg-core ppml/mod.rs
+			// 204-247): log-linear over 8 stages from start_inner_tol to the
+			// target, tightened to 0.1*eps, the target once eps < tol, never
+			// loosened. The outer convergence test is unchanged.
+			real scalar _k_next, _fr, _staged, _prog
+			_k_next = iter + 1
+			_fr = min((_k_next - 1, 7)) / 7
+			if (_k_next >= 8) _staged = target_inner_tol
+			else _staged = exp((1 - _fr) * log(start_inner_tol) + _fr * log(target_inner_tol))
+			if (iter <= 1) _prog = start_inner_tol
+			else if (eps <= tolerance) _prog = target_inner_tol
+			else _prog = min((max((0.1 * eps, target_inner_tol)), start_inner_tol))
+			HDFE.tolerance = max((min((_staged, _prog, HDFE.tolerance)), target_inner_tol))
+		}
+		else if (iter > 1 & eps < HDFE.tolerance) {
 			HDFE.tolerance = max((min((0.1 * HDFE.tolerance, alt_tol)), target_inner_tol))
 			alt_tol = 10 ^ -ceil(log10(1 / max((0.1 * eps, epsilon(1)))))
 		}
@@ -2005,6 +2704,66 @@ void ivppmlhdfe_irls(
 	}
 	else if (verbose > -1) {
 		printf("{txt}Converged in %g iterations (tol = %9.4e)\n", iter, tolerance)
+	}
+
+	// ---- 0.10.0: VCE refresh at the converged weights (fast path only) ----
+	// The 0.9.4 VCE uses X_dm, Z_dm and resid from the last iteration, which
+	// were partialled under the previous iterate's weights. With the fast path
+	// the columns are partialled once more under w*mu at the final mu (warm-
+	// started, at the target inner tolerance) and e(V) and the ffirst
+	// statistics are computed from them; b is the converged estimate.
+	if (any_acc & converged & K > 0) {
+		real colvector z_fin
+		z_fin = eta - offset :- 1 + y :/ mu
+		if (do_sep_mu) {
+			real colvector zero_idx_f
+			zero_idx_f = selectindex(y :== 0)
+			if (rows(zero_idx_f) > 0) z_fin[zero_idx_f] = eta[zero_idx_f] - offset[zero_idx_f] :- 1
+		}
+		irls_w = rowmax((w_user :* mu, J(N, 1, 1e-20)))
+		if (do_diag) timer_on(98)
+		if (use_schur) {
+			ivppmlhdfe_schur_weights(SC, irls_w)
+		}
+		else {
+			HDFE.update_sorted_weights(irls_w)
+			HDFE.update_cvar_objects()
+		}
+		if (acc_w & ws_ready) {
+			data[., 1] = data[., 1] + z_fin - z_old
+		}
+		else {
+			data = (z_fin, X, Z_excl)
+		}
+		HDFE.tolerance = target_inner_tol
+		_edittozerotol(data, min((tolerance, 1e-12)))
+		if (use_schur) {
+			data = ivppmlhdfe_schur_partial(SC, data, target_inner_tol)
+			inner_total = inner_total + SC.lastiters
+		}
+		else {
+			HDFE._partial_out(data, 0, 0, 0, 1)
+			if (do_diag) inner_total = inner_total + HDFE.iteration_count
+		}
+		_edittozerotol(data, min((tolerance, 1e-12)))
+		if (do_diag) timer_off(98)
+		z_dm = data[., 1]
+		X_dm = data[., 2..(1 + K)]
+		if (K_exog > 0 & n_inst > 0) {
+			Z_dm = (data[., 2..(1 + K_exog)], data[., (2 + K)..(1 + K + n_inst)])
+		}
+		else if (K_exog > 0) {
+			Z_dm = data[., 2..(1 + K_exog)]
+		}
+		else {
+			Z_dm = data[., (2 + K)..(1 + K + n_inst)]
+		}
+		resid = z_dm - X_dm * b
+	}
+	if (use_schur) {
+		// keep the HDFE object's weights in step with the final iterate
+		HDFE.update_sorted_weights(irls_w)
+		HDFE.update_cvar_objects()
 	}
 
 	// ================================================================
@@ -2228,6 +2987,50 @@ void ivppmlhdfe_irls(
 		HDFE.N_clust = _gmin
 	}
 	HDFE.estimate_dof()
+
+	// ---- 0.10.0: first-stage statistics (option ffirst) ----
+	// Conventions of ivreg2/ivreghdfe at the final IRLS weights (SPEC_ffirst):
+	// sdofminus = e(df_a), or 1 if e(df_a) = 0; robust meat weight = w_meat^2.
+	st_numscalar("ivppmlhdfe_ff_ok", 0)
+	if (do_ffirst & K_endo > 0 & n_inst >= K_endo) {
+		real scalar _sdof
+		string scalar _srs
+		_sdof = (HDFE.df_a > 0) ? HDFE.df_a : 1
+		// Stata breaks ties in sorts with its sort RNG; the sorts done here
+		// must not change later estimations in the session (the cluster VCE
+		// sums within clusters in sort order), so the RNG state is restored
+		_srs = st_global("c(sortrngstate)")
+		ivppmlhdfe_ffirst(X_dm, Z_dm, irls_w, w_meat :^ 2,
+			has_cluster ? clust_ids : J(N, 0, .), n_clust, N_eff, _sdof,
+			K_exog, K_endo, n_inst)
+		if (_srs != "") stata("set sortrngstate " + _srs)
+	}
+
+	// ---- 0.10.0: record of the fast path and diagnostics ----
+	{
+		string scalar _acc_eff
+		_acc_eff = ""
+		if (acc_w) _acc_eff = _acc_eff + " w"
+		if (acc_t) _acc_eff = _acc_eff + " t"
+		if (use_schur) _acc_eff = _acc_eff + " s"
+		_acc_eff = strtrim(_acc_eff)
+		if (_acc_eff == "") _acc_eff = "none"
+		st_local("accel_eff", _acc_eff)
+		if (acc_s & !use_schur & verbose > -1) {
+			printf("{txt}(note: accel component s needs two or more intercept-only fixed effects; MAP used)\n")
+		}
+		if (do_diag) {
+			real rowvector _tv
+			timer_off(97)
+			_tv = timer_value(98)
+			st_numscalar("ivppmlhdfe_t_partial", _tv[1])
+			_tv = timer_value(97)
+			st_numscalar("ivppmlhdfe_t_irls", _tv[1])
+			_tv = timer_value(96)
+			st_numscalar("ivppmlhdfe_t_build", _tv[1])
+			st_numscalar("ivppmlhdfe_inner_iter", inner_total)
+		}
+	}
 
 	// Add _cons to indepvars for proper column naming
 	HDFE.indepvars = HDFE.indepvars, "_cons"

@@ -27,9 +27,11 @@ cap mkdir "`dest'IVPPMLFixedEffectModels/src"
 * Copy Julia package files
 copy "`src'/IVPPMLFixedEffectModels/Project.toml" "`dest'IVPPMLFixedEffectModels/Project.toml", replace
 copy "`src'/IVPPMLFixedEffectModels/src/IVPPMLFixedEffectModels.jl" "`dest'IVPPMLFixedEffectModels/src/IVPPMLFixedEffectModels.jl", replace
+copy "`src'/IVPPMLFixedEffectModels/src/schur.jl" "`dest'IVPPMLFixedEffectModels/src/schur.jl", replace
 
 di as txt ""
-di as txt "ivppmlhdfejl v0.9.4 installed successfully."
+di as txt "ivppmlhdfejl v0.10.0 installed successfully."
+di as txt "If Stata was already running ivppmlhdfejl, restart it so Julia loads the new version."
 di as txt "Files placed in: `dest'"
 di as txt ""
 di as txt "Requirements: Julia 1.9+ and {stata ssc install julia}"

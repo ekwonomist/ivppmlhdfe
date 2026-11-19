@@ -40,13 +40,39 @@
 #     dummies (T3.1 in 02_stress_julia.log v0.9.2 produced coefs 1e13 with
 #     converged=false; v0.9.4 drops the redundant column and converges)
 #   * Graceful re-check of the order condition after collinearity removal
+# Updated: 2026-11-19 — v0.10.0 fast path ("accel", ON by default)
+#   * Type-stability fix in _load_col (`local col` + ::Vector{Float64}); the
+#     closure used to box `col`, so y, mu, eta, z ... were inferred as Any and
+#     every per-observation loop dispatched dynamically. Same numbers, 2-3x faster.
+#   * Three ideas from fereg (Schmieder 2026, NBER WP 36017), each a keyword:
+#       warmstart=true    (W) partial out the previous iteration's demeaned
+#                         columns (z: z_dm_old + z - z_old); iteration 1 starts
+#                         X, Z from the collinearity pass. Exact: M_new(v - D a) = M_new v.
+#       tolpolicy=:fereg  (T) fereg's inner-tolerance schedule (8 log-linear stages
+#                         from 1e-4 to the target, tightened to 0.1*eps, the target
+#                         once eps < tol, never loosened).
+#       solver=:schur     (S) exact elimination of the FE with most levels, then
+#                         Jacobi-PCG on the rest, all columns in lockstep (schur.jl).
+#   * vce_refresh=true: after convergence, X, Z and the working variable are
+#     partialled out once more at the CONVERGED weights (warm-started, target
+#     inner tolerance) and e(V) / ffirst use those columns. Removes the one-step
+#     weight lag of the v0.9.4 VCE (SE drift up to ~1e-6 along different paths).
+#   * accel=true (default) = W + T + S + vce_refresh; accel=false = the v0.9.4
+#     path, bit for bit (coefficients, vcov, iteration count). An explicit
+#     warmstart / tolpolicy / solver / vce_refresh keyword overrides accel.
+#   * ffirst=true: first-stage statistics (per endogenous regressor F, partial
+#     R2, Sanderson-Windmeijer F; Kleibergen-Paap rk LM and Wald F, Cragg-Donald
+#     Wald F), at the final IRLS weights, in r.first_stage.
+#   * r.stats: outer/inner iterations, solver passes, partial-out time and share.
+#   * weight_type=:fweight: frequency weights (N = sum of weights, robust meat
+#     sum fw_i (s_i/fw_i)^2). Default :pweight = the v0.9.4 behaviour.
 
 module IVPPMLFixedEffectModels
 
 using LinearAlgebra
 using FixedEffects
 using FixedEffects: update_weights!
-using StatsBase: Weights
+using StatsBase: Weights, UnitWeights
 using SpecialFunctions: loggamma
 using Printf
 using PrecompileTools
@@ -58,13 +84,17 @@ import StatsAPI: coef, vcov, nobs, coefnames, deviance, loglikelihood,
     nulldeviance, dof_residual, islinear, responsename,
     stderror, confint, coeftable
 using StatsBase: CoefTable
-import Distributions: Normal, cdf, quantile
+import Distributions: Normal, cdf, quantile, ccdf, FDist, Chisq
 
-export ivppml_reg, ppml_reg, IVPPMLResult
+export ivppml_reg, ppml_reg, IVPPMLResult, ffirst_matrix
 # Re-export the StatsAPI generics so that `using IVPPMLFixedEffectModels`
 # still makes `coef(r)`, `vcov(r)`, etc. available in the caller's scope.
 export coef, vcov, nobs, coefnames, deviance, loglikelihood,
     nulldeviance, dof_residual, stderror, confint, coeftable, responsename
+
+const IVPPML_VERSION = "0.10.0"
+
+include("schur.jl")
 
 # ============================================================================
 # Result container with standard accessors
@@ -92,6 +122,10 @@ struct IVPPMLResult
     n_dropped_exog::Int             # columns dropped by two-stage collinearity
     n_dropped_endog::Int
     n_dropped_inst::Int
+    # v0.10.0
+    accel::Bool                     # the fast path as requested (accel keyword)
+    stats::Dict{Symbol, Any}        # solver settings, iterations, timings
+    first_stage::Union{Nothing, Dict{String, Any}}   # ffirst statistics (nothing unless ffirst=true)
 end
 
 # StatsAPI-compatible accessors. Defensive `copy()` on mutable fields so
@@ -253,10 +287,14 @@ function _ivppml_robust_vce(Xhat::Matrix{Float64},
                             X_dm::Matrix{Float64},
                             w::Vector{Float64},
                             resid::Vector{Float64},
-                            N::Int)
+                            N::Int;
+                            fw::Union{Nothing, Vector{Float64}} = nothing)
     bread  = inv(Symmetric(Xhat' * (w .* X_dm)))
     scores = Xhat .* (w .* resid)
-    meat   = scores' * scores
+    # fweight (v0.10.0): each row stands for fw identical observations, so the
+    # meat is sum_i fw_i (s_i/fw_i)(s_i/fw_i)' = scores' (scores ./ fw), and N
+    # is the sum of the frequency weights (passed in by the caller).
+    meat   = fw === nothing ? scores' * scores : scores' * (scores ./ fw)
     V = (N / (N - 1)) .* bread * meat * bread
     return V
 end
@@ -319,7 +357,8 @@ function _ivppml_cluster_vce_single(Xhat::Matrix{Float64},
                                     X_dm::Matrix{Float64},
                                     w::Vector{Float64},
                                     resid::Vector{Float64},
-                                    clust_id::AbstractVector)
+                                    clust_id::AbstractVector;
+                                    fw::Union{Nothing, Vector{Float64}} = nothing)
     K = size(X_dm, 2)
     bread  = inv(Symmetric(Xhat' * (w .* X_dm)))
     scores = Xhat .* (w .* resid)
@@ -327,7 +366,8 @@ function _ivppml_cluster_vce_single(Xhat::Matrix{Float64},
     meat, G = _ivppml_clustmeat(scores, clust_id)
     if G <= 1
         # Fall back to robust VCE if only 1 cluster
-        V = _ivppml_robust_vce(Xhat, X_dm, w, resid, size(X_dm, 1))
+        V = fw === nothing ? _ivppml_robust_vce(Xhat, X_dm, w, resid, size(X_dm, 1)) :
+            _ivppml_robust_vce(Xhat, X_dm, w, resid, round(Int, sum(fw)); fw = fw)
     else
         V = (G / (G - 1)) .* bread * meat * bread
     end
@@ -403,6 +443,274 @@ function _ivppml_cluster_vce_multiway(Xhat::Matrix{Float64},
 end
 
 # ============================================================================
+# First-stage statistics (ffirst), v0.10.0
+#
+# Conventions pinned by the Stata track against ivreghdfe 1.1.4 / ivreg2 4.1.12
+# / ranktest 2.0.04 (program/sandbox/v010_build/stata/SPEC_ffirst.md): the
+# numbers are what `ivreghdfe z X1 (X2 = Z) [aw = w*mu], absorb(FEs) <vce>
+# ffirst` reports at the converged IRLS solution. Written from that text and
+# from Kleibergen and Paap (2006, J. Econometrics 133), not from GPL code.
+# ============================================================================
+
+const FFIRST_COLS = ["F", "df1", "df2", "p", "partialR2", "SWF", "SWdf1", "SWdf2", "SWp"]
+
+# dense group ids 1..G for one id vector
+function _dense_ids(v::AbstractVector{T}) where {T}
+    d = Dict{T, Int}()
+    out = Vector{Int}(undef, length(v))
+    @inbounds for i in eachindex(v)
+        out[i] = get!(d, v[i], length(d) + 1)
+    end
+    return out, length(d)
+end
+
+# dense ids of the intersection of two dense id vectors
+function _dense_pair(a::Vector{Int}, Ga::Int, b::Vector{Int})
+    return _dense_ids(Int[(a[i] - 1) + Ga * (b[i] - 1) for i in eachindex(a)])
+end
+
+# the FE (refs, G levels) is nested within the cluster ids cid
+function _fe_nested(refs, G::Int, cid::Vector{Int})
+    first = zeros(Int, G)
+    @inbounds for i in eachindex(cid)
+        g = refs[i]
+        if first[g] == 0
+            first[g] = cid[i]
+        elseif first[g] != cid[i]
+            return false
+        end
+    end
+    return true
+end
+
+# connected components of the bipartite graph levels(FE g) + levels(FE h), edges = observations
+function _bipartite_components(rg, Gg::Int, rh, Gh::Int)
+    parent = collect(1:(Gg + Gh))
+    function root(x)
+        while parent[x] != x
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        end
+        return x
+    end
+    @inbounds for i in eachindex(rg)
+        a = root(Int(rg[i])); b = root(Gg + Int(rh[i]))
+        a != b && (parent[a] = b)
+    end
+    return count(x -> root(x) == x, 1:(Gg + Gh))
+end
+
+# reghdfe's absorbed degrees of freedom (estimate_dof, dof(all)); SPEC_ffirst section 4
+function _reghdfe_df_a(fes, clist::Vector{Vector{Int}})
+    F = length(fes)
+    Gs = Int[fe.n for fe in fes]
+    M = zeros(Int, F)
+    nested = falses(F)
+    for g in 1:F
+        # (separate loops: a `break` in `for g in .., c in ..` would leave both)
+        if any(cid -> _fe_nested(fes[g].refs, Gs[g], cid), clist)
+            nested[g] = true
+            M[g] = Gs[g]
+        end
+    end
+    idx = [g for g in 1:F if !nested[g]]
+    if length(idx) > 1
+        for g in idx[2:end]
+            M[g] = 1
+        end
+    end
+    if any(nested) && length(idx) >= 1
+        for g in idx
+            M[g] = 1
+        end
+    end
+    for a in eachindex(idx), b in (a + 1):length(idx)
+        g, h = idx[a], idx[b]
+        M[h] = max(M[h], _bipartite_components(fes[g].refs, Gs[g], fes[h].refs, Gs[h]))
+    end
+    return sum(Gs .- M)
+end
+
+# symmetric PSD square root
+function _sqrtm_psd(Mx::AbstractMatrix)
+    E = eigen(Symmetric(Matrix(Mx)))
+    return E.vectors * Diagonal(sqrt.(max.(E.values, 0.0))) * E.vectors'
+end
+
+# meat of per-observation "unweighted scores" S (N x p):
+#   robust  sum_i psi_i s_i s_i';   cluster  sum_c sign_c sum_g u_g u_g',  u_g = sum_{i in g} omega_i s_i
+function _ff_meat(S::AbstractMatrix{Float64}, om::Vector{Float64}, psi::Vector{Float64},
+                  clusters::Vector{Tuple{Int, Vector{Int}, Int}})
+    isempty(clusters) && return S' * (psi .* S)
+    p = size(S, 2)
+    Mx = zeros(p, p)
+    WS = om .* S
+    for (sgn, gid, G) in clusters
+        U = zeros(G, p)
+        @inbounds for c in 1:p, i in axes(WS, 1)
+            U[gid[i], c] += WS[i, c]
+        end
+        Mx .+= sgn .* (U' * U)
+    end
+    return Mx
+end
+
+function _ff_wls(R::AbstractMatrix{Float64}, y::AbstractVector{Float64}, om::Vector{Float64})
+    RtR = R' * (R .* om)
+    b = RtR \ (R' * (om .* y))
+    return b, y .- R * b, RtR
+end
+
+function _ivppml_ffirst(X_dm, Z_dm, om, w_user, K_exog, K_endo, n_inst, N,
+                        fes, fe_syms, has_cluster, clust_id_cols, n_clust, endog_names, is_fw)
+    Kw, Ke, Lz = K_exog, K_endo, n_inst
+    L  = Kw + Lz
+    Wx = X_dm[:, 1:Kw]
+    Xe = X_dm[:, (Kw + 1):(Kw + Ke)]
+    Zx = Z_dm[:, (Kw + 1):(Kw + Lz)]
+    R  = hcat(Zx, Wx)                      # all instruments, the Z block first
+    om = Vector{Float64}(om)
+    psi = is_fw ? (om .^ 2) ./ w_user : om .^ 2   # fweights: f*mu^2
+
+    # clusters: one-way, or Cameron-Gelbach-Miller inclusion-exclusion (no G/(G-1), no PSD fix)
+    clusters = Tuple{Int, Vector{Int}, Int}[]
+    clist = Vector{Int}[]
+    G = 0
+    if has_cluster
+        cols = n_clust == 1 ? [vec(clust_id_cols)] : [clust_id_cols[:, j] for j in 1:n_clust]
+        dims = [_dense_ids(c) for c in cols]
+        clist = [d[1] for d in dims]
+        G = minimum(d[2] for d in dims)
+        for mask in 1:(2^n_clust - 1)
+            ids, Gm = Int[], 0
+            for j in 1:n_clust
+                (mask >> (j - 1)) & 1 == 1 || continue
+                ids, Gm = isempty(ids) ? dims[j] : _dense_pair(ids, Gm, dims[j][1])
+            end
+            push!(clusters, (isodd(count_ones(mask)) ? 1 : -1, ids, Gm))
+        end
+    end
+    df_a = isempty(fe_syms) ? 0 : _reghdfe_df_a(fes, clist)
+    sdof = df_a > 0 ? df_a : 1
+    meat(S) = _ff_meat(S, om, psi, clusters)
+
+    function wald_Z(e, RtR, b)
+        A = inv(RtR)
+        V = A * meat(R .* e) * A
+        bz = b[1:Lz]
+        return dot(bz, V[1:Lz, 1:Lz] \ bz)
+    end
+    function toF(W0, q)
+        if has_cluster
+            return W0 / (N - 1) * (N - L - sdof) * (G - 1) / G / q, Float64(G - 1)
+        end
+        df2 = N - L - sdof
+        return W0 / N * df2 / q, Float64(df2)
+    end
+    ftail(d1, d2, f) = (isfinite(f) && d2 > 0) ? ccdf(FDist(d1, d2), f) : NaN
+
+    rows = [Dict{String, Any}() for _ in 1:Ke]
+    Pi = zeros(L, Ke)
+    for k in 1:Ke
+        b, e, RtR = _ff_wls(R, Xe[:, k], om)
+        Pi[:, k] = b
+        F, df2 = toF(wald_Z(e, RtR, b), Lz)
+        er = Kw > 0 ? _ff_wls(Wx, Xe[:, k], om)[2] : Xe[:, k]
+        pr2 = 1.0 - dot(om, e .* e) / dot(om, er .* er)
+        rows[k]["F"] = F; rows[k]["df1"] = Float64(Lz); rows[k]["df2"] = df2
+        rows[k]["p"] = ftail(Lz, df2, F); rows[k]["partialR2"] = pr2
+    end
+    # Sanderson-Windmeijer (2016)
+    Xhat = R * Pi
+    for k in 1:Ke
+        if Ke == 1
+            rows[k]["SWF"] = rows[k]["F"]; rows[k]["SWdf1"] = rows[k]["df1"]
+            rows[k]["SWdf2"] = rows[k]["df2"]; rows[k]["SWp"] = rows[k]["p"]
+            continue
+        end
+        others = [j for j in 1:Ke if j != k]
+        Sh = hcat(Xhat[:, others], Wx)
+        Sa = hcat(Xe[:, others], Wx)
+        b1 = (Sh' * (Sh .* om)) \ (Sh' * (om .* Xe[:, k]))
+        e1 = Xe[:, k] .- Sa * b1
+        b2, e2, RtR = _ff_wls(R, e1, om)
+        q = Lz - Ke + 1
+        F, df2 = toF(wald_Z(e2, RtR, b2), q)
+        rows[k]["SWF"] = F; rows[k]["SWdf1"] = Float64(q); rows[k]["SWdf2"] = df2
+        rows[k]["SWp"] = ftail(q, df2, F)
+    end
+    # Kleibergen-Paap rk statistics and Cragg-Donald, with W partialled out of X and Z (weighted)
+    if Kw > 0
+        Y  = reduce(hcat, [_ff_wls(Wx, Xe[:, k], om)[2] for k in 1:Ke])
+        Zb = reduce(hcat, [_ff_wls(Wx, Zx[:, l], om)[2] for l in 1:Lz])
+    else
+        Y, Zb = copy(Xe), copy(Zx)
+    end
+    Y = reshape(Y, :, Ke); Zb = reshape(Zb, :, Lz)
+    A = Zb' * (Zb .* om)
+    B = Y' * (Y .* om)
+    C = Zb' * (Y .* om)
+    PiZ = A \ C                                       # Lz x Ke
+    LA = Matrix(cholesky(Symmetric(A)).L)
+    LB = Matrix(cholesky(Symmetric(B)).L)
+    Theta = LA' * PiZ * inv(LB')
+    sv = svd(Theta; full = true)
+    U, s, V = sv.U, sv.S, sv.V
+    kk = Ke - 1                                       # H0: rank(Pi) = Ke - 1
+    u12 = U[1:kk, (kk + 1):Lz]; u22 = U[(kk + 1):Lz, (kk + 1):Lz]
+    v12 = V[1:kk, (kk + 1):Ke]; v22 = V[(kk + 1):Ke, (kk + 1):Ke]
+    Aperp = vcat(u12, u22) * inv(u22) * _sqrtm_psd(u22 * u22')
+    Bperp = _sqrtm_psd(v22 * v22') * inv(Matrix(v22')) * Matrix(vcat(v12, v22)')
+    T = kron(Bperp, Matrix(Aperp'))
+    lam = T * vec(Theta)
+    J = kron(inv(LB), inv(LA))
+    Nobs = size(Zb, 1)
+    function rk(v)
+        S = Matrix{Float64}(undef, Nobs, Ke * Lz)     # row i: v_i (x) zbar_i (zbar fastest)
+        @inbounds for k in 1:Ke, l in 1:Lz, i in 1:Nobs
+            S[i, (k - 1) * Lz + l] = v[i, k] * Zb[i, l]
+        end
+        Vt = T * J * meat(S) * J' * T'
+        return dot(lam, Vt \ lam)
+    end
+    rk_lm = rk(Y)
+    rk_w  = rk(Y .- Zb * PiZ)
+    iddf = Lz - Ke + 1
+    idstat = rk_lm
+    widstat = has_cluster ? rk_w / (N - 1) * (N - L - sdof) * (G - 1) / G / Lz :
+                            rk_w / N * (N - L - sdof) / Lz
+    cdf = minimum(s .^ 2 ./ (1 .- s .^ 2)) * (N - sdof - L) / Lz
+
+    out = Dict{String, Any}()
+    for k in 1:Ke
+        out[endog_names[k]] = rows[k]
+    end
+    out["idstat"] = idstat
+    out["iddf"] = Float64(iddf)
+    out["idp"] = ccdf(Chisq(iddf), idstat)
+    out["cdf"] = cdf
+    out["widstat"] = widstat
+    out["_meta"] = Dict{String, Any}("sdof" => sdof, "df_a" => df_a, "N" => N,
+                                     "G" => has_cluster ? G : nothing, "L" => L, "Ke" => Ke, "Lz" => Lz,
+                                     "endog" => collect(endog_names), "ccorr" => collect(s))
+    return out
+end
+
+"""
+    ffirst_matrix(r) -> (M, rownames, colnames)
+
+The first-stage statistics of a fit with `ffirst=true` as ivreg2's e(first) layout used by
+ivppmlhdfe: one row per endogenous regressor, columns F df1 df2 p partialR2 SWF SWdf1 SWdf2 SWp.
+"""
+function ffirst_matrix(r)
+    ff = r.first_stage
+    ff === nothing && return (zeros(0, length(FFIRST_COLS)), String[], copy(FFIRST_COLS))
+    names = String.(ff["_meta"]["endog"])
+    M = [Float64(ff[n][c]) for n in names, c in FFIRST_COLS]
+    return M, names, copy(FFIRST_COLS)
+end
+
+# ============================================================================
 # Main estimation: ivppml_reg
 #
 # Single-call entry point mirroring nlreg() from GLFixedEffectModels.jl.
@@ -438,7 +746,44 @@ function ivppml_reg(df::Any,          # AbstractDataFrame
                     method::Symbol = :cpu,
                     standardize::Bool = false,
                     guess::Symbol = :default,
-                    mu_separation::Bool = true)
+                    mu_separation::Bool = true,
+                    accel::Bool = true,
+                    warmstart::Union{Bool, Nothing} = nothing,
+                    tolpolicy::Union{Symbol, Nothing} = nothing,
+                    solver::Union{Symbol, Nothing} = nothing,
+                    vce_refresh::Union{Bool, Nothing} = nothing,
+                    ffirst::Bool = false,
+                    weight_type::Symbol = :pweight)
+
+    # ---- v0.10.0: weight type (v0.9.4 treated every weight as a pweight) ----
+    weight_type in (:pweight, :fweight) ||
+        error("ivppml_reg: weight_type must be :pweight or :fweight (got :$(weight_type))")
+    is_fw = weight_type === :fweight && weights !== nothing
+
+    # ---- v0.10.0 fast path: resolve the per-idea switches ----
+    # accel=true turns on W, T, S and the VCE refresh; accel=false is the v0.9.4
+    # path. An explicit keyword overrides the accel default (diagnostics).
+    t_fit0   = time_ns()
+    use_ws   = warmstart === nothing ? accel : warmstart
+    tolpol   = tolpolicy === nothing ? (accel ? :fereg : :ppmlhdfe) : tolpolicy
+    solv     = solver === nothing ? ((accel && method === :cpu) ? :schur : :lsmr) : solver
+    use_refresh = vce_refresh === nothing ? accel : vce_refresh
+    solv in (:lsmr, :schur) ||
+        error("ivppml_reg: solver must be :lsmr or :schur (got :$(solv))")
+    tolpol in (:ppmlhdfe, :fereg) ||
+        error("ivppml_reg: tolpolicy must be :ppmlhdfe or :fereg (got :$(tolpol))")
+    (solv === :schur && method !== :cpu) &&
+        error("ivppml_reg: solver=:schur runs on the CPU only (method=:$(method)); use solver=:lsmr")
+    track_z  = use_ws || use_refresh   # keep the last working variable for a warm start
+    st_inner_iters = 0          # solver iterations, summed over solves and columns
+    st_passes      = 0          # passes over the data by the solver
+    st_t_partial   = 0          # ns: weight refill + partial-out inside the IRLS loop
+    st_t_coll      = 0          # ns: the collinearity partial-out
+    st_t_setup     = 0          # ns: building the IRLS solver
+    st_t_refresh   = 0          # ns: the VCE refresh partial-out
+    st_allconv     = true
+    st_tol_trace   = Float64[]
+    st_it_trace    = Int[]
 
     # ---- Coerce loose Vector{Any} (e.g. literal `[]`) to Vector{Symbol} ----
     # so users can write `ivppml_reg(df, :y, [:x], [], [], [:fe])` without
@@ -456,11 +801,13 @@ function ivppml_reg(df::Any,          # AbstractDataFrame
     function _load_col(df, sym::Symbol, role::String)
         sym in propertynames(df) ||
             error("ivppml_reg: $(role) column :$(sym) not found in DataFrame")
-        col = df[!, sym]
+        # v0.10.0 type fix: `local` keeps this `col` from capturing (and boxing)
+        # the enclosing function's `col`; the assertion makes the result concrete.
+        local col = df[!, sym]
         any(ismissing, col) &&
             error("ivppml_reg: $(role) column :$(sym) contains missing values; drop or impute before estimation")
         try
-            return Float64.(col)
+            return convert(Vector{Float64}, Float64.(col))::Vector{Float64}
         catch e
             error("ivppml_reg: $(role) column :$(sym) has eltype $(eltype(col)) which cannot be converted to Float64")
         end
@@ -610,6 +957,8 @@ function ivppml_reg(df::Any,          # AbstractDataFrame
     end
 
     w_user     = w_user_full
+    is_fw && any(x -> x != round(x), w_user) &&
+        error("ivppml_reg: frequency weights must be integers")
     offset_vec_orig = offset_full
     # Center the offset to weighted mean 0 for the IRLS loop.  Without this a
     # large absolute-scale offset (e.g. log(trade_$) ≈ 25) leaves the initial
@@ -702,9 +1051,17 @@ function ivppml_reg(df::Any,          # AbstractDataFrame
     # instruments silently produced rank-deficient designs that LU-pivoted
     # `\` silently returned garbage for (see T3.1 "manual xf dummies" in the
     # v0.9.2 stress log — coefs of order 1e13 with converged=false).
+    ws_XZ   = nothing      # v0.10.0 warm start for iteration 1: the FE-free X, Z of this pass
+    feS     = nothing      # v0.10.0 Schur solver (built here once, reused by the IRLS loop)
     if (K + n_inst) > 0
         target_inner_tol_coll = max(1e-12, 0.1 * tol)
-        feM_coll = AbstractFixedEffectSolver{Float64}(fes, Weights(w_user), Val{method})
+        t_c0 = time_ns()
+        if solv === :schur
+            feS = SchurFESolver(fes, w_user)
+            feM_coll = nothing
+        else
+            feM_coll = AbstractFixedEffectSolver{Float64}(fes, Weights(w_user), Val{method})
+        end
         # Keep a RAW (un-partialled) copy for the absorption test in
         # _select_not_collinear — we need both matrices to detect columns
         # whose signal was fully absorbed by the FE structure.
@@ -716,8 +1073,21 @@ function ivppml_reg(df::Any,          # AbstractDataFrame
             data_raw[:, K+1:end] .= Z_excl
         end
         data_coll = copy(data_raw)
-        solve_residuals!(data_coll, feM_coll;
-                         maxiter=10000, tol=target_inner_tol_coll, progress_bar=false)
+        if solv === :schur
+            p_before = feS.passes
+            _, its_c, cv_c = schur_solve_residuals!(data_coll, feS;
+                                                    maxiter=10000, tol=target_inner_tol_coll)
+            st_passes += feS.passes - p_before
+        else
+            _, its_c, cv_c = solve_residuals!(data_coll, feM_coll;
+                             maxiter=10000, tol=target_inner_tol_coll, progress_bar=false)
+            st_passes += sum(its_c)
+        end
+        st_t_coll = time_ns() - t_c0
+        st_inner_iters += sum(its_c)
+        st_allconv &= all(cv_c)
+        K_exog_orig = K_exog      # column map for the warm start
+        K_orig      = K
 
         exog_keep  = K_exog > 0 ?
             _select_not_collinear(view(data_coll, :, 1:K_exog),
@@ -778,6 +1148,12 @@ function ivppml_reg(df::Any,          # AbstractDataFrame
                       "got $(n_inst)")
         end
 
+        if use_ws
+            # same column selection as X = [exog endog] and Z_excl after any drop
+            keep_cols = vcat(collect(exog_keep), Int[i + K_exog_orig for i in endog_keep],
+                             Int[i + K_orig for i in inst_keep])
+            ws_XZ = data_coll[:, keep_cols]
+        end
         feM_coll = nothing
     end
 
@@ -800,7 +1176,20 @@ function ivppml_reg(df::Any,          # AbstractDataFrame
     irls_w = w_user .* mu
     irls_w = max.(irls_w, 1e-20)
     wts    = Weights(irls_w)
-    feM    = AbstractFixedEffectSolver{Float64}(fes, wts, Val{method})
+    t_s0   = time_ns()
+    if solv === :schur
+        feM = nothing
+        if feS === nothing
+            feS = SchurFESolver(fes, irls_w)
+        else
+            schur_update_weights!(feS, irls_w)    # reuse the collinearity pass's structure
+        end
+    else
+        feM    = AbstractFixedEffectSolver{Float64}(fes, wts, Val{method})
+    end
+    st_t_setup = time_ns() - t_s0
+    z_old    = track_z ? zeros(N) : Float64[]
+    ws_ready = false        # data holds the last iteration's demeaned columns
 
     # ---- IRLS state ----
     converged = false
@@ -885,13 +1274,44 @@ function ivppml_reg(df::Any,          # AbstractDataFrame
         end
 
         # (c) Update solver weights IN-PLACE (not recreate!)
-        update_weights!(feM, Weights(irls_w))
+        t_p0 = time_ns()
+        if solv === :schur
+            schur_update_weights!(feS, irls_w)
+        else
+            update_weights!(feM, Weights(irls_w))
+        end
 
         # (d) Demean all variables at once
-        data[:, 1]            .= z
-        data[:, 2:K+1]        .= X
-        data[:, K+2:end]      .= Z_excl
-        solve_residuals!(data, feM; maxiter=10000, tol=inner_tol, progress_bar=false)
+        if use_ws && ws_ready
+            # (W) M_new(z_dm_old + z - z_old) = M_new z,  M_new X_dm_old = M_new X
+            @views data[:, 1] .+= z .- z_old
+        else
+            data[:, 1]            .= z
+            if use_ws && ws_XZ !== nothing
+                data[:, 2:end]    .= ws_XZ       # FE-free under the user weights
+                ws_XZ = nothing
+            else
+                data[:, 2:K+1]        .= X
+                data[:, K+2:end]      .= Z_excl
+            end
+        end
+        if track_z
+            copyto!(z_old, z)
+            ws_ready = true
+        end
+        if solv === :schur
+            p_before = feS.passes
+            _, its_d, cv_d = schur_solve_residuals!(data, feS; maxiter=10000, tol=inner_tol)
+            st_passes += feS.passes - p_before
+        else
+            _, its_d, cv_d = solve_residuals!(data, feM; maxiter=10000, tol=inner_tol, progress_bar=false)
+            st_passes += sum(its_d)
+        end
+        st_t_partial += time_ns() - t_p0
+        st_inner_iters += sum(its_d)
+        st_allconv &= all(cv_d)
+        push!(st_tol_trace, inner_tol)
+        push!(st_it_trace, sum(its_d))
 
         z_dm = view(data, :, 1)
         X_dm .= view(data, :, 2:K+1)
@@ -1074,7 +1494,20 @@ function ivppml_reg(df::Any,          # AbstractDataFrame
         converged && break
 
         # Adaptive inner tolerance
-        if iter > 1 && eps_val < inner_tol
+        if tolpol === :fereg
+            # (T) fereg's scheduled_inner_tolerance (fereg-core/src/ppml/mod.rs:204-247),
+            # with the deviance change as the progress measure: a staged log-linear target
+            # over 8 stages from the start tol to the target, tightened to 0.1*eps, the
+            # target as soon as eps < tol, never loosened.
+            k_next = iter + 1
+            fr = min(k_next - 1, 7) / 7
+            staged = k_next >= 8 ? target_inner_tol :
+                exp((1 - fr) * log(start_inner_tol) + fr * log(target_inner_tol))
+            prog = iter > 1 ?
+                (eps_val <= tol ? target_inner_tol :
+                 clamp(0.1 * eps_val, target_inner_tol, start_inner_tol)) : start_inner_tol
+            inner_tol = max(min(staged, prog, inner_tol), target_inner_tol)
+        elseif iter > 1 && eps_val < inner_tol
             inner_tol = max(min(0.1 * inner_tol, alt_tol), target_inner_tol)
             alt_tol = 10.0^(-ceil(log10(1.0 / max(0.1 * eps_val, eps(1.0)))))
         end
@@ -1094,6 +1527,60 @@ function ivppml_reg(df::Any,          # AbstractDataFrame
     # ==================================================================
 
     @. irls_w = max(w_user * mu, 1e-20)
+
+    # ---- v0.10.0 VCE refresh (accel) ----
+    # The v0.9.4 VCE uses X_dm, Z_dm and the residual of the last IRLS iteration,
+    # which were partialled out under the PREVIOUS iterate's weights, while the
+    # bread and meat use the converged ones; the SE then depends on the last step
+    # of the path (~1e-7..1e-6 relative). Partial z, X, Z out once more at the
+    # converged weights, warm-started from the last iteration's columns (exact:
+    # M_new(M_old v) = M_new v), at the target inner tolerance, and take the
+    # residual at the converged coefficients.
+    if use_refresh
+        t_r0 = time_ns()
+        z_r = eta .- offset_vec .- 1.0 .+ y ./ mu        # offset_vec is still centred here
+        if mu_separation
+            @inbounds for i in 1:N
+                if y[i] == 0.0
+                    z_r[i] = eta[i] - offset_vec[i] - 1.0
+                end
+            end
+        end
+        if solv === :schur
+            schur_update_weights!(feS, irls_w)
+        else
+            update_weights!(feM, Weights(irls_w))
+        end
+        if ws_ready
+            @views data[:, 1] .+= z_r .- z_old           # data holds the last demeaned columns
+        else
+            data[:, 1]       .= z_r
+            data[:, 2:K+1]   .= X
+            data[:, K+2:end] .= Z_excl
+        end
+        if solv === :schur
+            p_before = feS.passes
+            _, its_r, cv_r = schur_solve_residuals!(data, feS; maxiter=10000, tol=target_inner_tol)
+            st_passes += feS.passes - p_before
+        else
+            _, its_r, cv_r = solve_residuals!(data, feM; maxiter=10000, tol=target_inner_tol,
+                                              progress_bar=false)
+            st_passes += sum(its_r)
+        end
+        st_inner_iters += sum(its_r)
+        st_allconv &= all(cv_r)
+        X_dm .= view(data, :, 2:K+1)
+        if K_exog > 0 && n_inst > 0
+            Z_dm .= hcat(view(data, :, 2:K_exog+1), view(data, :, K+2:K+n_inst+1))
+        elseif K_exog > 0
+            Z_dm .= view(data, :, 2:K_exog+1)
+        else
+            Z_dm .= view(data, :, K+2:K+n_inst+1)
+        end
+        resid .= view(data, :, 1) .- X_dm * b
+        st_t_refresh = time_ns() - t_r0
+    end
+
     sw_f = sum(irls_w)
 
     # Restore offset to the user's original (uncentered) values.  eta and mu
@@ -1124,13 +1611,22 @@ function ivppml_reg(df::Any,          # AbstractDataFrame
     end
 
     # VCE
+    # fweight (v0.10.0): N is the sum of the frequency weights (Stata's e(N)).
+    N_rep = is_fw ? round(Int, sum(w_user)) : N
     G_counts = Int[]
     if has_cluster
         if n_clust == 1
-            V_slope, G_counts = _ivppml_cluster_vce_single(Xhat, X_dm, irls_w, resid, clust_id_cols)
+            if is_fw
+                V_slope, G_counts = _ivppml_cluster_vce_single(Xhat, X_dm, irls_w, resid, clust_id_cols;
+                                                               fw = w_user)
+            else
+                V_slope, G_counts = _ivppml_cluster_vce_single(Xhat, X_dm, irls_w, resid, clust_id_cols)
+            end
         else
             V_slope, G_counts = _ivppml_cluster_vce_multiway(Xhat, X_dm, irls_w, resid, clust_id_cols, n_clust)
         end
+    elseif is_fw
+        V_slope = _ivppml_robust_vce(Xhat, X_dm, irls_w, resid, N_rep; fw = w_user)
     else
         V_slope = _ivppml_robust_vce(Xhat, X_dm, irls_w, resid, N)
     end
@@ -1215,11 +1711,43 @@ function ivppml_reg(df::Any,          # AbstractDataFrame
     df_absorb = isempty(fe_syms) ? 0 :
         sum(length(unique(fe.refs)) for fe in fes) - length(fes)
 
-    return IVPPMLResult(b_full, V, cnames, depvar, N, N_full,
+    # ---- v0.10.0 first-stage statistics (ffirst) ----
+    # At the final IRLS weights, on the partialled-out columns used by the VCE
+    # (the refreshed ones with accel, the last iteration's with accel=false).
+    first_stage = nothing
+    if ffirst && K_endo > 0 && n_inst > 0
+        first_stage = _ivppml_ffirst(X_dm, Z_dm, irls_w, w_user, K_exog, K_endo, n_inst, N_rep,
+                                     fes, fe_syms, has_cluster, clust_id_cols, n_clust,
+                                     String.(endog), is_fw)
+    end
+
+    stats = Dict{Symbol, Any}(
+        :accel        => accel,
+        :warmstart    => use_ws,
+        :tolpolicy    => tolpol,
+        :solver       => solv,
+        :vce_refresh  => use_refresh,
+        :outer_iters  => iter,
+        :inner_iters  => st_inner_iters,
+        :passes       => st_passes,
+        :inner_allconv => st_allconv,
+        :restarts     => feS === nothing ? 0 : feS.restarts,
+        :t_coll       => st_t_coll / 1e9,
+        :t_setup      => st_t_setup / 1e9,
+        :t_partial    => st_t_partial / 1e9,
+        :t_refresh    => st_t_refresh / 1e9,
+        :t_fit        => (time_ns() - t_fit0) / 1e9,
+        :tol_trace    => st_tol_trace,
+        :it_trace     => st_it_trace)
+
+    stats[:weight_type] = is_fw ? :fweight : (weights === nothing ? :none : :pweight)
+
+    return IVPPMLResult(b_full, V, cnames, depvar, N_rep, N_full,
                         converged, iter, deviance, ll, ll_0,
                         d_vals, eta, G_counts, esample,
                         num_sep_mu, actual_rank, df_absorb,
-                        n_drop_exog, n_drop_endog, n_drop_inst)
+                        n_drop_exog, n_drop_endog, n_drop_inst,
+                        accel, stats, first_stage)
 end
 
 # ============================================================================
@@ -1266,6 +1794,17 @@ Base.propertynames(d::_DFWrap) = propertynames(d.nt)
                    cluster = :cid, offset = :off1, tol = 1e-8, maxiter = 50, verbose = -1)
     catch
     end
+    # v0.10.0: two FEs on the fast path with ffirst, and the v0.9.4 path
+    try
+        ivppml_reg(_dfwrap, :y, Symbol[:x1], Symbol[:x2], Symbol[:z1], Symbol[:fe1, :cid];
+                   cluster = :cid, tol = 1e-8, maxiter = 50, verbose = -1, ffirst = true)
+    catch
+    end
+    try
+        ivppml_reg(_dfwrap, :y, Symbol[:x1], Symbol[:x2], Symbol[:z1], Symbol[:fe1, :cid];
+                   tol = 1e-8, maxiter = 50, verbose = -1, accel = false, ffirst = true)
+    catch
+    end
 end
 
 # ============================================================================
@@ -1295,12 +1834,20 @@ function ppml_reg(df::Any,
                   method::Symbol = :cpu,
                   standardize::Bool = false,
                   guess::Symbol = :default,
-                  mu_separation::Bool = true)
+                  mu_separation::Bool = true,
+                  accel::Bool = true,
+                  warmstart::Union{Bool, Nothing} = nothing,
+                  tolpolicy::Union{Symbol, Nothing} = nothing,
+                  solver::Union{Symbol, Nothing} = nothing,
+                  vce_refresh::Union{Bool, Nothing} = nothing,
+                  weight_type::Symbol = :pweight)
     return ivppml_reg(df, depvar, regressors, Symbol[], Symbol[], fe_syms;
                       cluster=cluster, weights=weights, offset=offset,
                       tol=tol, itol=itol, maxiter=maxiter, verbose=verbose,
                       method=method, standardize=standardize, guess=guess,
-                      mu_separation=mu_separation)
+                      mu_separation=mu_separation, accel=accel, warmstart=warmstart,
+                      tolpolicy=tolpolicy, solver=solver, vce_refresh=vce_refresh,
+                      weight_type=weight_type)
 end
 
 end # module

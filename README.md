@@ -2,7 +2,7 @@
 
 Instrumental-variable Poisson pseudo-maximum likelihood estimation with high-dimensional fixed effects.
 
-v0.10.0 — for Stata, Julia, R and Python. Please report issues to Ohyun Kwon at theekwonomist@gmail.com.
+v1.0.0 — for Stata, Julia, R and Python. Please report issues to Ohyun Kwon at theekwonomist@gmail.com.
 
 Ohyun Kwon, Mario Larch, Jangsu Yoon, Yoto V. Yotov
 
@@ -20,7 +20,7 @@ The command is designed to feel natural to users of [`ppmlhdfe`](https://github.
 | B | N × N × T | Exporter-year + Importer-year | `absorb(exp#year imp#year)` |
 | C | N × N × T | Pair + Exporter-year + Importer-year | `absorb(exp#imp exp#year imp#year)` |
 
-## What's New in v0.10.0
+## What's New in v1.0.0
 
 - **Four versions of one estimator.** Stata/Mata (`ivppmlhdfe`), Julia (`IVPPMLFixedEffectModels.jl`, also callable from Stata as `ivppmlhdfejl`), and new native packages for R and Python. All four follow the same conventions (starting values, convergence, singletons, separation, collinearity, standard errors) and are checked against each other on a shared set of 17 cases in [`crosscheck/`](crosscheck/).
 - **A faster fixed-effect solver, on by default.** Three ideas from `fereg` ([Schmieder, 2026](https://www.nber.org/papers/w36017)): (i) a warm start, which partials out the previous iteration's demeaned columns again instead of the raw columns; (ii) a loose-to-tight schedule for the inner tolerance; (iii) the fixed effect with the most levels is eliminated exactly and the rest is solved by Jacobi-preconditioned conjugate gradients. The estimator does not change: on the test cases the fast path agrees with the earlier algorithm to 2e-10 in coefficients and 7e-7 in standard errors (Stata: 3e-11 and 6e-9). Most of the SE gap is the earlier algorithm's: it computes the variance at weights one iteration out of date, while the fast path recomputes it at the converged weights. `noaccel` (Stata) or `accel = false` (Julia, R, Python) turns it off, and in Stata and Julia this reproduces v0.9.4 bit for bit.
@@ -28,14 +28,14 @@ The command is designed to feel natural to users of [`ppmlhdfe`](https://github.
 
 Seconds per fit for a three-way gravity model (Class C, 200 countries × 30 years, 1,194,000 observations), one core:
 
-| Version | v0.9.4 | v0.10.0 | Speed-up |
+| Version | v0.9.4 | v1.0.0 | Speed-up |
 |---|---|---|---|
 | Stata/Mata | 185 | 66 | 2.8× |
 | Julia | 8.3 | 1.75 | 4.7× |
 | Python (new) | | 2.4 | |
 | R (new) | | 11.9 | |
 
-Stata was timed on a desktop PC; Julia, Python and R on one core of an AMD EPYC 9374F node. Across 13 benchmark designs (Classes A, B, C, up to 1.2 million observations), v0.10.0 is 3.7–8.1 times faster than v0.9.4 in Julia (part of this comes from a type-stability fix in the Julia code) and 1.9 times faster in Stata in total time.
+Stata was timed on a desktop PC; Julia, Python and R on one core of an AMD EPYC 9374F node. Across 13 benchmark designs (Classes A, B, C, up to 1.2 million observations), v1.0.0 is 3.7–8.1 times faster than v0.9.4 in Julia (part of this comes from a type-stability fix in the Julia code) and 1.9 times faster in Stata in total time.
 
 ## Installation
 
@@ -180,7 +180,7 @@ margins, dydx(x2)
 
 ## Julia Backend (`ivppmlhdfejl`) — Optional
 
-A Julia-powered backend is available for faster estimation. Since v0.10.0 it uses the same fast fixed-effect solver as the Stata command (warm start, tolerance schedule, exact elimination + conjugate gradients); with `accel = false` it falls back to [`FixedEffects.jl`](https://github.com/FixedEffects/FixedEffects.jl) as in v0.9.4. `ivppmlhdfejl` passes `noaccel` and `ffirst` through. In Julia, `weight_type = :fweight` gives Stata's frequency-weight results (the default stays `:pweight`).
+A Julia-powered backend is available for faster estimation. Since v1.0.0 it uses the same fast fixed-effect solver as the Stata command (warm start, tolerance schedule, exact elimination + conjugate gradients); with `accel = false` it falls back to [`FixedEffects.jl`](https://github.com/FixedEffects/FixedEffects.jl) as in v0.9.4. `ivppmlhdfejl` passes `noaccel` and `ffirst` through. In Julia, `weight_type = :fweight` gives Stata's frequency-weight results (the default stays `:pweight`).
 
 Pure Julia is substantially faster than Stata/Mata for repeated estimation (Monte Carlo, bootstrap), since it avoids the per-call overhead of the Stata-Julia bridge.
 

@@ -52,7 +52,7 @@ summary.ivppmlhdfe <- function(object, level = 0.95, ...) {
               x$iterations, x$deviance, x$ll, x$r2_p))
 }
 
-.IVPPML_VERSION <- "0.10.0"
+.IVPPML_VERSION <- "1.0.0"
 
 print.ivppmlhdfe <- function(x, digits = max(3L, getOption("digits") - 3L), ...) {
   .header(x)

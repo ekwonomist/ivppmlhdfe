@@ -1,4 +1,4 @@
-*! ivppmlhdfejl 0.10.0  19nov2026
+*! ivppmlhdfejl 1.0.0  19nov2026
 *! (IV-)PPML with High-Dimensional Fixed Effects — Julia backend
 *! Architecture: Path 3 — single Julia call with solver reuse (update_weights!)
 *! Mirrors reghdfejl / GLFixedEffectModels.jl pattern
@@ -20,9 +20,9 @@
 *! Options: vce(cluster c1 [c2]) tolerance(#) itolerance(#) maxiterations(#) verbose(#)
 *!          exposure(varname) offset(varname) d(name) separation(string)
 *!          standardize guess(simple|mean)
-*!          noaccel ffirst                                          (v0.10.0)
+*!          noaccel ffirst                                          (v1.0.0)
 *!
-*! v0.10.0 (19nov2026):
+*! v1.0.0 (19nov2026):
 *!   - The Julia package's fast path (accel: warm start + fereg tolerance schedule +
 *!     exact elimination of the largest FE with Jacobi-PCG + VCE refresh at the
 *!     converged weights) is ON by default; noaccel passes accel=false = the v0.9.4
@@ -595,7 +595,7 @@ program _ivppmlhdfejl, eclass
 	}
 
 	// ---------- 4.  Singletons and FE separation (Stata-side) ----------
-	// v0.10.0: both drops work on each absorbed FE as written (the JOINT
+	// v1.0.0: both drops work on each absorbed FE as written (the JOINT
 	// interaction exp#year, not exp and year separately: v0.9.4 checked
 	// separation on the component variables and missed all-zero exp#year
 	// cells), and they are iterated together until nothing changes, as
@@ -844,7 +844,7 @@ program _ivppmlhdfejl, eclass
 	local jl_itolopt ""
 	if `itolerance' > 0 local jl_itolopt , itol = `itolerance'
 
-	// v0.10.0: fast path switch, first-stage statistics, frequency weights
+	// v1.0.0: fast path switch, first-stage statistics, frequency weights
 	local jl_accopt , accel = true
 	if "`accel'" == "noaccel" local jl_accopt , accel = false
 	local jl_ffopt ""
@@ -972,7 +972,7 @@ program _ivppmlhdfejl, eclass
 		}
 	}
 
-	// v0.10.0: first-stage statistics (ffirst)
+	// v1.0.0: first-stage statistics (ffirst)
 	local has_ffirst 0
 	if "`jl_ffopt'" != "" {
 		tempname t_hasff ff_out ff_idstat ff_iddf ff_idp ff_cdf ff_widstat ff_sdof
@@ -1098,7 +1098,7 @@ program _ivppmlhdfejl, eclass
 	ereturn scalar df_m        = `rank_final'
 	ereturn scalar rank        = `rank_final'
 	ereturn scalar num_sep_mu  = `nsep_mu_final'
-	// v0.10.0
+	// v1.0.0
 	ereturn scalar accel       = ("`accel'" != "noaccel")
 	if `has_ffirst' {
 		ereturn scalar idstat    = scalar(`ff_idstat')
@@ -1234,10 +1234,10 @@ program _ivppmlhdfejl, eclass
 	di as txt _n "{hline 78}"
 	local _accdisp = cond("`accel'" == "noaccel", "noaccel", "accel")
 	if `is_iv' {
-		di as txt "IV-PPML with High-Dimensional Fixed Effects  (Julia backend v0.10.0, `_accdisp')"
+		di as txt "IV-PPML with High-Dimensional Fixed Effects  (Julia backend v1.0.0, `_accdisp')"
 	}
 	else {
-		di as txt "PPML with High-Dimensional Fixed Effects  (Julia backend v0.10.0, `_accdisp')"
+		di as txt "PPML with High-Dimensional Fixed Effects  (Julia backend v1.0.0, `_accdisp')"
 	}
 	di as txt "{hline 78}"
 
@@ -1309,7 +1309,7 @@ end
 
 
 // ==========================================================================
-// v0.10.0: first-stage statistics table (ffirst), read from e()
+// v1.0.0: first-stage statistics table (ffirst), read from e()
 // ==========================================================================
 
 program _ivppmlhdfejl_ffdisp

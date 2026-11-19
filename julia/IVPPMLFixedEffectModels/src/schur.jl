@@ -1,4 +1,4 @@
-# schur.jl -- the fixed-effect solver of the v0.10.0 fast path (solver = :schur).
+# schur.jl -- the fixed-effect solver of the v1.0.0 fast path (solver = :schur).
 #
 # Borrowed from fereg's fedemean (Schmieder 2026, NBER WP 36017, p.22-24): eliminate the fixed
 # effect with the most groups EXACTLY, then solve the remaining, much smaller system (the Schur

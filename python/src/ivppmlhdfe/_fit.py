@@ -34,7 +34,7 @@ from ._vce import sandwich_vce
 
 __all__ = ["fit", "IVPPMLError", "IVPPMLConvergenceError"]
 
-VERSION = "0.10.0"
+VERSION = "1.0.0"
 EPS100 = float(np.spacing(100.0))      # 1.42e-14, ppmlhdfe's floor for mu
 
 

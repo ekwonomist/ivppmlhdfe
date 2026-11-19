@@ -40,7 +40,7 @@
 #     dummies (T3.1 in 02_stress_julia.log v0.9.2 produced coefs 1e13 with
 #     converged=false; v0.9.4 drops the redundant column and converges)
 #   * Graceful re-check of the order condition after collinearity removal
-# Updated: 2026-11-19 — v0.10.0 fast path ("accel", ON by default)
+# Updated: 2026-11-19 — v1.0.0 fast path ("accel", ON by default)
 #   * Type-stability fix in _load_col (`local col` + ::Vector{Float64}); the
 #     closure used to box `col`, so y, mu, eta, z ... were inferred as Any and
 #     every per-observation loop dispatched dynamically. Same numbers, 2-3x faster.
@@ -92,7 +92,7 @@ export ivppml_reg, ppml_reg, IVPPMLResult, ffirst_matrix
 export coef, vcov, nobs, coefnames, deviance, loglikelihood,
     nulldeviance, dof_residual, stderror, confint, coeftable, responsename
 
-const IVPPML_VERSION = "0.10.0"
+const IVPPML_VERSION = "1.0.0"
 
 include("schur.jl")
 
@@ -122,7 +122,7 @@ struct IVPPMLResult
     n_dropped_exog::Int             # columns dropped by two-stage collinearity
     n_dropped_endog::Int
     n_dropped_inst::Int
-    # v0.10.0
+    # v1.0.0
     accel::Bool                     # the fast path as requested (accel keyword)
     stats::Dict{Symbol, Any}        # solver settings, iterations, timings
     first_stage::Union{Nothing, Dict{String, Any}}   # ffirst statistics (nothing unless ffirst=true)
@@ -291,7 +291,7 @@ function _ivppml_robust_vce(Xhat::Matrix{Float64},
                             fw::Union{Nothing, Vector{Float64}} = nothing)
     bread  = inv(Symmetric(Xhat' * (w .* X_dm)))
     scores = Xhat .* (w .* resid)
-    # fweight (v0.10.0): each row stands for fw identical observations, so the
+    # fweight (v1.0.0): each row stands for fw identical observations, so the
     # meat is sum_i fw_i (s_i/fw_i)(s_i/fw_i)' = scores' (scores ./ fw), and N
     # is the sum of the frequency weights (passed in by the caller).
     meat   = fw === nothing ? scores' * scores : scores' * (scores ./ fw)
@@ -443,7 +443,7 @@ function _ivppml_cluster_vce_multiway(Xhat::Matrix{Float64},
 end
 
 # ============================================================================
-# First-stage statistics (ffirst), v0.10.0
+# First-stage statistics (ffirst), v1.0.0
 #
 # Conventions pinned by the Stata track against ivreghdfe 1.1.4 / ivreg2 4.1.12
 # / ranktest 2.0.04 (program/sandbox/v010_build/stata/SPEC_ffirst.md): the
@@ -755,12 +755,12 @@ function ivppml_reg(df::Any,          # AbstractDataFrame
                     ffirst::Bool = false,
                     weight_type::Symbol = :pweight)
 
-    # ---- v0.10.0: weight type (v0.9.4 treated every weight as a pweight) ----
+    # ---- v1.0.0: weight type (v0.9.4 treated every weight as a pweight) ----
     weight_type in (:pweight, :fweight) ||
         error("ivppml_reg: weight_type must be :pweight or :fweight (got :$(weight_type))")
     is_fw = weight_type === :fweight && weights !== nothing
 
-    # ---- v0.10.0 fast path: resolve the per-idea switches ----
+    # ---- v1.0.0 fast path: resolve the per-idea switches ----
     # accel=true turns on W, T, S and the VCE refresh; accel=false is the v0.9.4
     # path. An explicit keyword overrides the accel default (diagnostics).
     t_fit0   = time_ns()
@@ -801,7 +801,7 @@ function ivppml_reg(df::Any,          # AbstractDataFrame
     function _load_col(df, sym::Symbol, role::String)
         sym in propertynames(df) ||
             error("ivppml_reg: $(role) column :$(sym) not found in DataFrame")
-        # v0.10.0 type fix: `local` keeps this `col` from capturing (and boxing)
+        # v1.0.0 type fix: `local` keeps this `col` from capturing (and boxing)
         # the enclosing function's `col`; the assertion makes the result concrete.
         local col = df[!, sym]
         any(ismissing, col) &&
@@ -1051,8 +1051,8 @@ function ivppml_reg(df::Any,          # AbstractDataFrame
     # instruments silently produced rank-deficient designs that LU-pivoted
     # `\` silently returned garbage for (see T3.1 "manual xf dummies" in the
     # v0.9.2 stress log — coefs of order 1e13 with converged=false).
-    ws_XZ   = nothing      # v0.10.0 warm start for iteration 1: the FE-free X, Z of this pass
-    feS     = nothing      # v0.10.0 Schur solver (built here once, reused by the IRLS loop)
+    ws_XZ   = nothing      # v1.0.0 warm start for iteration 1: the FE-free X, Z of this pass
+    feS     = nothing      # v1.0.0 Schur solver (built here once, reused by the IRLS loop)
     if (K + n_inst) > 0
         target_inner_tol_coll = max(1e-12, 0.1 * tol)
         t_c0 = time_ns()
@@ -1528,7 +1528,7 @@ function ivppml_reg(df::Any,          # AbstractDataFrame
 
     @. irls_w = max(w_user * mu, 1e-20)
 
-    # ---- v0.10.0 VCE refresh (accel) ----
+    # ---- v1.0.0 VCE refresh (accel) ----
     # The v0.9.4 VCE uses X_dm, Z_dm and the residual of the last IRLS iteration,
     # which were partialled out under the PREVIOUS iterate's weights, while the
     # bread and meat use the converged ones; the SE then depends on the last step
@@ -1611,7 +1611,7 @@ function ivppml_reg(df::Any,          # AbstractDataFrame
     end
 
     # VCE
-    # fweight (v0.10.0): N is the sum of the frequency weights (Stata's e(N)).
+    # fweight (v1.0.0): N is the sum of the frequency weights (Stata's e(N)).
     N_rep = is_fw ? round(Int, sum(w_user)) : N
     G_counts = Int[]
     if has_cluster
@@ -1711,7 +1711,7 @@ function ivppml_reg(df::Any,          # AbstractDataFrame
     df_absorb = isempty(fe_syms) ? 0 :
         sum(length(unique(fe.refs)) for fe in fes) - length(fes)
 
-    # ---- v0.10.0 first-stage statistics (ffirst) ----
+    # ---- v1.0.0 first-stage statistics (ffirst) ----
     # At the final IRLS weights, on the partialled-out columns used by the VCE
     # (the refreshed ones with accel, the last iteration's with accel=false).
     first_stage = nothing
@@ -1794,7 +1794,7 @@ Base.propertynames(d::_DFWrap) = propertynames(d.nt)
                    cluster = :cid, offset = :off1, tol = 1e-8, maxiter = 50, verbose = -1)
     catch
     end
-    # v0.10.0: two FEs on the fast path with ffirst, and the v0.9.4 path
+    # v1.0.0: two FEs on the fast path with ffirst, and the v0.9.4 path
     try
         ivppml_reg(_dfwrap, :y, Symbol[:x1], Symbol[:x2], Symbol[:z1], Symbol[:fe1, :cid];
                    cluster = :cid, tol = 1e-8, maxiter = 50, verbose = -1, ffirst = true)

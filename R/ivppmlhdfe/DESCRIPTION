@@ -1,7 +1,7 @@
 Package: ivppmlhdfe
 Type: Package
 Title: IV-PPML with High-Dimensional Fixed Effects
-Version: 0.10.0
+Version: 1.0.0
 Date: 2026-11-19
 Authors@R: c(
     person("Ohyun", "Kwon", email = "theekwonomist@gmail.com", role = c("aut", "cre")),

@@ -1,4 +1,4 @@
-*! ivppmlhdfe predict program  (ivppmlhdfe 0.10.0, 19nov2026; unchanged since 0.9.4)
+*! ivppmlhdfe predict program  (ivppmlhdfe 1.0.0, 19nov2026; unchanged since 0.9.4)
 *! Follows ppmlhdfe_p.ado pattern
 
 program ivppmlhdfe_p

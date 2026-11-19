@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ivppmlhdfe"
-version = "0.10.0"
+version = "1.0.0"
 description = "IV-PPML (instrumental-variables Poisson pseudo-maximum likelihood) with high-dimensional fixed effects"
 readme = "README.md"
 license = "MIT"

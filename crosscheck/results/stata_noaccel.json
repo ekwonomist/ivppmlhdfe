@@ -1,6 +1,6 @@
 {
  "impl": "stata",
- "version": "0.10.0",
+ "version": "1.0.0",
  "accel": false,
  "platform": "EKWONOMIST Stata 18.5 MP processors 4/4",
  "created": "2026-11-19T14:46:01",

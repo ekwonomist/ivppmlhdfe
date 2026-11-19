@@ -34,7 +34,7 @@ The difference is |a - b| / max(|b|, 1e-3), reported per case for coefficients, 
 `--ffirst`) first-stage statistics. N, singletons and separated observations must match exactly.
 The script exits with code 1 when a case is outside `--tol` (default 1e-6).
 
-## Results at v0.10.0 (largest difference over the 17 cases)
+## Results at v1.0.0 (largest difference over the 17 cases)
 
 | Comparison | Coefficients | SEs | First stage |
 |---|---|---|---|
@@ -47,7 +47,7 @@ The script exits with code 1 when a case is outside `--tol` (default 1e-6).
 | Julia fast path off vs Stata v0.9.4 | 1.4e-10 | 6.5e-7 | |
 | Each version's first stage vs `ivreghdfe` reference | | | 1.5e-9 |
 
-Note: Julia v0.9.4 treated frequency weights as probability weights. In v0.10.0 the keyword
+Note: Julia v0.9.4 treated frequency weights as probability weights. In v1.0.0 the keyword
 `weight_type=:fweight` gives Stata's frequency-weight results; `A_fw` therefore differs from
 `julia_v094.json` (N = 1999 against 1000) and matches Stata.
 

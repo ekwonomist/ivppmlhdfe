@@ -1,4 +1,4 @@
-"""Build the shared cross-language test cases for ivppmlhdfe v0.10.0.
+"""Build the shared cross-language test cases for ivppmlhdfe v1.0.0.
 
 Reads the three example datasets in github_repo/data, adds deterministic extra columns
 (second and third instruments, a second endogenous regressor, weights, an offset, zeros
@@ -95,7 +95,7 @@ def main() -> None:
              note="25% zeros; exporter 3 in year 5 is all zero, so separated by the fe method"),
         case("A_single", "A_single", fe_A, rob, note="5 singleton observations to drop"),
     ]
-    (OUT / "cases.json").write_text(json.dumps({"version": "0.10.0", "cases": cases}, indent=2) + "\n",
+    (OUT / "cases.json").write_text(json.dumps({"version": "1.0.0", "cases": cases}, indent=2) + "\n",
                                     encoding="utf-8", newline="\n")
     for k, v in files.items():
         print(k, v, (OUT / v).stat().st_size)

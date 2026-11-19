@@ -1,5 +1,5 @@
 {smcl}
-{* *! version 0.10.0  19nov2026}{...}
+{* *! version 1.0.0  19nov2026}{...}
 {vieweralsosee "ppmlhdfe" "help ppmlhdfe"}{...}
 {vieweralsosee "reghdfe" "help reghdfe"}{...}
 {vieweralsosee "ivreghdfe" "help ivreghdfe"}{...}
@@ -268,7 +268,7 @@ coefficients, interpretable as incidence-rate ratios.
 {title:Fast path}
 
 {pstd}
-Since v0.10.0 the fixed effects are concentrated out with three ideas taken
+Since v1.0.0 the fixed effects are concentrated out with three ideas taken
 from {cmd:fereg} ({help ivppmlhdfe##references:Schmieder 2026}). They change
 how the inner fixed-effect problem is solved, not the estimator: the
 starting values, the outer convergence test, the variance formulas and every
@@ -575,7 +575,7 @@ Endogeneity in count data models: An application to demand for health care.
 {marker history}{...}
 {title:Version history}
 
-{phang2}{bf:0.10.0} (19nov2026): fast path from fereg (warm start, inner-tolerance schedule,
+{phang2}{bf:1.0.0} (19nov2026): fast path from fereg (warm start, inner-tolerance schedule,
 exact elimination + preconditioned conjugate gradients) with {cmd:noaccel} and
 {cmd:accel()}; variance refreshed at the converged weights on the fast path;
 new option {cmd:ffirst}.{p_end}

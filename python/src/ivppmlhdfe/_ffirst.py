@@ -1,4 +1,4 @@
-"""First-stage statistics (ffirst), written from ``stata/SPEC_ffirst.md`` (v0.10.0 build).
+"""First-stage statistics (ffirst), written from ``stata/SPEC_ffirst.md`` (v1.0.0 build).
 
 At convergence, for the linear IV problem at the final IRLS weights omega = w*mu with the fixed
 effects partialled out under omega: the statistics are those that

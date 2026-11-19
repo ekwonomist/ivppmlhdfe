@@ -30,7 +30,7 @@ copy "`src'/IVPPMLFixedEffectModels/src/IVPPMLFixedEffectModels.jl" "`dest'IVPPM
 copy "`src'/IVPPMLFixedEffectModels/src/schur.jl" "`dest'IVPPMLFixedEffectModels/src/schur.jl", replace
 
 di as txt ""
-di as txt "ivppmlhdfejl v0.10.0 installed successfully."
+di as txt "ivppmlhdfejl v1.0.0 installed successfully."
 di as txt "If Stata was already running ivppmlhdfejl, restart it so Julia loads the new version."
 di as txt "Files placed in: `dest'"
 di as txt ""

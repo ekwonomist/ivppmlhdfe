@@ -1,5 +1,5 @@
 # ivppmlhdfe: IV-PPML with high-dimensional fixed effects (R port of the Stata command
-# ivppmlhdfe v0.9.4 with the v0.10.0 fast path). See ?ivppmlhdfe.
+# ivppmlhdfe v0.9.4 with the v1.0.0 fast path). See ?ivppmlhdfe.
 
 .EPS1 <- .Machine$double.eps          # Mata epsilon(1)
 .EPS100 <- 2^-46                       # Mata epsilon(100): spacing of doubles at 100

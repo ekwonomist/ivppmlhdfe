@@ -1,7 +1,7 @@
 # ivppmlhdfe (R)
 
 IV-PPML with high-dimensional fixed effects, in pure R (no compiled code; base R and `stats` only).
-The R port of the Stata command `ivppmlhdfe`, version 0.10.0.
+The R port of the Stata command `ivppmlhdfe`, version 1.0.0.
 
 The estimator solves the additive moment E[q(y − μ)] = 0 with q = (x′, z′)′ and
 μ = exp(x′β + ΣFE + offset) by iteratively reweighted two-stage least squares, with the fixed

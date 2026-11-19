@@ -1,6 +1,6 @@
 {
   "impl": "r",
-  "version": "0.10.0",
+  "version": "1.0.0",
   "accel": true,
   "platform": "R version 4.5.3 (2026-03-11) | epyc-3-2",
   "created": "2026-11-19T14:59:35",

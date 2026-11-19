@@ -31,7 +31,7 @@ ivppmlhdfe(fml, data, vcov = "robust", weights = NULL,
     replicated).}
   \item{offset}{\code{NULL} or the name of an offset variable (coefficient fixed at 1).}
   \item{exposure}{\code{NULL} or the name of an exposure variable (offset = log(exposure)).}
-  \item{accel}{\code{TRUE} (default) switches on the fast path of version 0.10.0: (w) warm
+  \item{accel}{\code{TRUE} (default) switches on the fast path of version 1.0.0: (w) warm
     starts of the fixed-effect partial-out across IRLS iterations, (t) the staged inner
     tolerance schedule of fereg, and (r) a refresh of the partialled columns at the converged
     weights for the standard errors and first-stage statistics. \code{FALSE} gives the

@@ -158,7 +158,7 @@ C_k2's x3 row and every p-value are in the JSON.
 - **B_sep counts:** Stata v0.9.4 reports N = 8671, num_singletons = 29, num_separated = 0. The 29 observations of the
   all-zero exporter-year group are dropped by reghdfe's iweight trick and counted as singletons, not as
   separated. SPEC 4 requires these counts to match exactly, so a port that reports 29 separated will FAIL
-  compare.py against Stata on B_sep. (Not changed in v0.10.0: noaccel must equal v0.9.4 bit for bit.)
+  compare.py against Stata on B_sep. (Not changed in v1.0.0: noaccel must equal v0.9.4 bit for bit.)
 - **ppmlhdfe on the desktop is 2.3.3 (02nov2025)**; the copy archived in `program\archive\existing_stata_code`
   is 2.3.0. Both default to a warm-started partial-out (use_exact_partial = 0) with standardised data
   (standardize_data = 1), which v0.9.4 does not do, so v0.9.4 equals ppmlhdfe 2.3.3 to 2.3e-15 in coefficients

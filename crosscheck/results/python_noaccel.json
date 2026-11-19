@@ -1,6 +1,6 @@
 {
  "impl": "python",
- "version": "0.10.0",
+ "version": "1.0.0",
  "accel": false,
  "platform": "WHA-AAB25WLM-WL Windows AMD64 Python 3.12.10 numpy 2.5.2 pandas 3.0.5",
  "created": "2026-11-19T14:50:15-05:00",

@@ -1,10 +1,10 @@
-*! ivppmlhdfe 0.10.0  19nov2026
+*! ivppmlhdfe 1.0.0  19nov2026
 *! IV-PPML with High-Dimensional Fixed Effects
 *! Algorithm: IRLS-IV targeting the additive moment E[q(y-mu)]=0, q=(x',z')',
 *!            following Windmeijer & Santos Silva (1997). Solved via iteratively
 *!            reweighted 2SLS (Correia, Guimaraes & Zylkin 2020), with FE
 *!            concentrated out at each iteration through reghdfe.
-*! 0.10.0: fast path from fereg (Schmieder 2026, NBER WP 36017): warm-started
+*! 1.0.0: fast path from fereg (Schmieder 2026, NBER WP 36017): warm-started
 *!            partial-out, fereg's inner-tolerance schedule, exact elimination of
 *!            the largest FE + Jacobi-PCG; option noaccel = the 0.9.4 path bit for
 *!            bit; option ffirst = first-stage statistics (as ivreg2/ivreghdfe).
@@ -263,7 +263,7 @@ program Estimate, eclass
 		NOACCEL ACCEL(string) FFIRST DIAGnostics ///
 		*]
 
-	// ---- fast path (0.10.0) ----
+	// ---- fast path (1.0.0) ----
 	// Default components of the fast path: w = warm start, t = fereg's inner-
 	// tolerance schedule, s = exact elimination of the largest FE + Jacobi-PCG.
 	// noaccel restores the 0.9.4 path bit for bit. accel(w t s) picks
@@ -974,9 +974,9 @@ program Estimate, eclass
 	// margins compatibility: set marginsnotok (matching ppmlhdfe)
 	ereturn local marginsnotok "stdp Anscombe Cooksd Deviance Hat Likelihood Pearson Response Score Working ADJusted STAndardized STUdentized MODified"
 
-	// ---- 0.10.0: fast path record, diagnostics, first-stage statistics ----
+	// ---- 1.0.0: fast path record, diagnostics, first-stage statistics ----
 	ereturn local accel "`accel_eff'"
-	ereturn local version "0.10.0"
+	ereturn local version "1.0.0"
 	if `do_diag' {
 		ereturn scalar time_partial = ivppmlhdfe_t_partial
 		ereturn scalar time_irls    = ivppmlhdfe_t_irls
@@ -1287,7 +1287,7 @@ real matrix ivppmlhdfe_robustvce(
 
 
 // ==========================================================================
-// 0.10.0 (s): exact elimination of the fixed effect with the most levels,
+// 1.0.0 (s): exact elimination of the fixed effect with the most levels,
 // then Jacobi-preconditioned conjugate gradients on the remaining system
 // S = D2' W M1 D2 (never formed), all data columns in lockstep. Borrowed from
 // fereg (Schmieder 2026, NBER WP 36017, pp. 20-24); written for Mata on the
@@ -1539,7 +1539,7 @@ real matrix ivppmlhdfe_schur_partial(struct ivppmlhdfe_schur_t scalar S,
 
 
 // ==========================================================================
-// 0.10.0: first-stage statistics (option ffirst). Written from the formulas in
+// 1.0.0: first-stage statistics (option ffirst). Written from the formulas in
 // SPEC_ffirst.md (ivreg2/ivreghdfe conventions; Kleibergen and Paap 2006 rk
 // statistic; Sanderson and Windmeijer 2016), not from ivreg2/ranktest code.
 // ==========================================================================
@@ -1863,7 +1863,7 @@ void ivppmlhdfe_irls(
 	if (args() < 30) do_diag = 0
 	num_sep_fe = 0
 
-	// ---- 0.10.0 fast-path state ----
+	// ---- 1.0.0 fast-path state ----
 	// any_acc = 0 runs exactly the 0.9.4 code path (bit for bit).
 	real scalar any_acc, use_schur, ws_ready, inner_total, t_partial, t_irls
 	real matrix XZ_coll
@@ -2069,7 +2069,7 @@ void ivppmlhdfe_irls(
 		// a half-initialized state when no user weights are present
 		// (HDFE.load_weights("", ...) leaves HDFE.weight as a 1×1 scalar
 		// which corrupts subsequent partial_out invocations).
-		// 0.10.0 (s): exact elimination + PCG on the FE objects, if eligible
+		// 1.0.0 (s): exact elimination + PCG on the FE objects, if eligible
 		if (acc_s) {
 			use_schur = ivppmlhdfe_schur_ok(HDFE)
 			if (use_schur) {
@@ -2242,7 +2242,7 @@ void ivppmlhdfe_irls(
 			}
 		}
 
-		// 0.10.0 (w): keep the surviving columns, already free of the fixed
+		// 1.0.0 (w): keep the surviving columns, already free of the fixed
 		// effects under the user weights, as iteration 1's warm start
 		if (acc_w) {
 			XZ_coll = data_for_coll[., selectindex((exog_keep, endog_keep, inst_keep))]
@@ -2706,7 +2706,7 @@ void ivppmlhdfe_irls(
 		printf("{txt}Converged in %g iterations (tol = %9.4e)\n", iter, tolerance)
 	}
 
-	// ---- 0.10.0: VCE refresh at the converged weights (fast path only) ----
+	// ---- 1.0.0: VCE refresh at the converged weights (fast path only) ----
 	// The 0.9.4 VCE uses X_dm, Z_dm and resid from the last iteration, which
 	// were partialled under the previous iterate's weights. With the fast path
 	// the columns are partialled once more under w*mu at the final mu (warm-
@@ -2988,7 +2988,7 @@ void ivppmlhdfe_irls(
 	}
 	HDFE.estimate_dof()
 
-	// ---- 0.10.0: first-stage statistics (option ffirst) ----
+	// ---- 1.0.0: first-stage statistics (option ffirst) ----
 	// Conventions of ivreg2/ivreghdfe at the final IRLS weights (SPEC_ffirst):
 	// sdofminus = e(df_a), or 1 if e(df_a) = 0; robust meat weight = w_meat^2.
 	st_numscalar("ivppmlhdfe_ff_ok", 0)
@@ -3006,7 +3006,7 @@ void ivppmlhdfe_irls(
 		if (_srs != "") stata("set sortrngstate " + _srs)
 	}
 
-	// ---- 0.10.0: record of the fast path and diagnostics ----
+	// ---- 1.0.0: record of the fast path and diagnostics ----
 	{
 		string scalar _acc_eff
 		_acc_eff = ""

@@ -1,6 +1,6 @@
 {
  "impl": "stata-ffirst-reference",
- "version": "0.10.0",
+ "version": "1.0.0",
  "source": "ivreghdfe 1.1.4 (with ivreg2 4.1.11 inside) + ranktest 2.0.04 on Stata 18.5 MP, desktop EKWONOMIST, job ivppml010_ref unit ffirst, run on the v0.9.4 solution at omega = w*mu",
  "created": "2026-11-19T14:09:04",
  "cases": {

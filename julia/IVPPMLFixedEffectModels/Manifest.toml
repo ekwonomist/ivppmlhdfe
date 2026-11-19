@@ -104,7 +104,7 @@ version = "0.3.28"
 deps = ["Distributions", "FixedEffects", "LinearAlgebra", "PrecompileTools", "Printf", "Random", "SpecialFunctions", "StatsAPI", "StatsBase"]
 path = "."
 uuid = "fbf2f18d-b04c-4f09-b658-baf9122d0788"
-version = "0.10.0"
+version = "1.0.0"
 
 [[deps.IrrationalConstants]]
 git-tree-sha1 = "b2d91fe939cae05960e760110b328288867b5758"
